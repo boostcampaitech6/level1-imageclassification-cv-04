@@ -9,6 +9,8 @@ __pycache__/
 # Folders
 code/
 data/
+cmj/
+SeolHun/
 
 # Docs
 .cache
