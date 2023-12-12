@@ -1,36 +1,40 @@
-# PyTorch Template Project
-PyTorch deep learning project made easy.
+# AI Tech 6기 Team Cㅏ이Vㅓ즈 🤖
 
-<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
+## Members
+- 김찬우
+- 설훈
+- 이도형
+- 이현지
+- 조민지
+- 조성혁
 
-<!-- code_chunk_output -->
+## Ground Rules
+### [Conventional Commits 1.0.0](https://www.conventionalcommits.org/ko/v1.0.0/)
+```bash
+<타입>[적용 범위(선택 사항)]: <설명>
 
-* [PyTorch Template Project](#pytorch-template-project)
-	* [Requirements](#requirements)
-	* [Features](#features)
-	* [Folder Structure](#folder-structure)
-	* [Usage](#usage)
-		* [Config file format](#config-file-format)
-		* [Using config files](#using-config-files)
-		* [Resuming from checkpoints](#resuming-from-checkpoints)
-    * [Using Multiple GPU](#using-multiple-gpu)
-	* [Customization](#customization)
-		* [Custom CLI options](#custom-cli-options)
-		* [Data Loader](#data-loader)
-		* [Trainer](#trainer)
-		* [Model](#model)
-		* [Loss](#loss)
-		* [metrics](#metrics)
-		* [Additional logging](#additional-logging)
-		* [Validation data](#validation-data)
-		* [Checkpoints](#checkpoints)
-    * [Tensorboard Visualization](#tensorboard-visualization)
-	* [Contribution](#contribution)
-	* [TODOs](#todos)
-	* [License](#license)
-	* [Acknowledgements](#acknowledgements)
+[본문(선택 사항)]
 
-<!-- /code_chunk_output -->
+[꼬리말(선택 사항)]
+```
+
+#### Types
+- fix | feat | BREAKING CHANGE | build | chore | ci | docs | style | refactor | test | release
+  - fix : 기능에 대한 버그 수정
+  - feat : 새로운 기능 추가, 기존의 기능을 요구 사항에 맞추어 수정
+  - build : 빌드 관련 수정
+  - chore : 패키지 매니저 수정, 그 외 기타 수정 ex) .gitignore
+  - ci : CI 관련 설정 수정
+  - docs : 문서(주석) 수정
+  - style : 코드 스타일, 포맷팅에 대한 수정
+  - refactor : 기능의 변화가 아닌 코드 리팩터링 ex) 변수 이름 변경
+  - test : 테스트 코드 추가/수정
+  - release : 버전 릴리즈
+
+### Github Flow
+
+> It will be updated.
+
 
 ## Requirements
 * Python >= 3.5 (3.6 recommended)
@@ -93,65 +97,10 @@ PyTorch deep learning project made easy.
   ```
 
 ## Usage
-The code in this repo is an MNIST example of the template.
 Try `python train.py -c config.json` to run code.
 
 ### Config file format
-Config files are in `.json` format:
-```javascript
-{
-  "name": "Mnist_LeNet",        // training session name
-  "n_gpu": 1,                   // number of GPUs to use for training.
-  
-  "arch": {
-    "type": "MnistModel",       // name of model architecture to train
-    "args": {
-
-    }                
-  },
-  "data_loader": {
-    "type": "MnistDataLoader",         // selecting data loader
-    "args":{
-      "data_dir": "data/",             // dataset path
-      "batch_size": 64,                // batch size
-      "shuffle": true,                 // shuffle training data before splitting
-      "validation_split": 0.1          // size of validation dataset. float(portion) or int(number of samples)
-      "num_workers": 2,                // number of cpu processes to be used for data loading
-    }
-  },
-  "optimizer": {
-    "type": "Adam",
-    "args":{
-      "lr": 0.001,                     // learning rate
-      "weight_decay": 0,               // (optional) weight decay
-      "amsgrad": true
-    }
-  },
-  "loss": "nll_loss",                  // loss
-  "metrics": [
-    "accuracy", "top_k_acc"            // list of metrics to evaluate
-  ],                         
-  "lr_scheduler": {
-    "type": "StepLR",                  // learning rate scheduler
-    "args":{
-      "step_size": 50,          
-      "gamma": 0.1
-    }
-  },
-  "trainer": {
-    "epochs": 100,                     // number of training epochs
-    "save_dir": "saved/",              // checkpoints are saved in save_dir/models/name
-    "save_freq": 1,                    // save checkpoints every save_freq epochs
-    "verbosity": 2,                    // 0: quiet, 1: per epoch, 2: full
-  
-    "monitor": "min val_loss"          // mode and metric for model performance monitoring. set 'off' to disable.
-    "early_stop": 10	                 // number of epochs to wait before early stop. set 0 to disable.
-  
-    "tensorboard": true,               // enable tensorboard visualization
-  }
-}
-```
-
+Config files are in `.json` format.
 Add addional configurations if you need.
 
 ### Using config files
@@ -328,48 +277,64 @@ A copy of config file will be saved in the same folder.
   }
   ```
 
-### Tensorboard Visualization
-This template supports Tensorboard visualization by using either  `torch.utils.tensorboard` or [TensorboardX](https://github.com/lanpa/tensorboardX).
+### Wandb Visualization
+This template supports Wandb visualization by using [Wandb](https://github.com/wandb/wandb) library.
 
-1. **Install**
+#### Quickstart
 
-    If you are using pytorch 1.1 or higher, install tensorboard by 'pip install tensorboard>=1.14.0'.
+Get started with W&B in four steps:
 
-    Otherwise, you should install tensorboardx. Follow installation guide in [TensorboardX](https://github.com/lanpa/tensorboardX).
+1. First, sign up for a [free W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart).
 
-2. **Run training** 
+2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
 
-    Make sure that `tensorboard` option in the config file is turned on.
+```bash
+pip install wandb
+```
 
-    ```
-     "tensorboard" : true
-    ```
+3. Third, log into W&B:
 
-3. **Open Tensorboard server** 
+```python
+wandb.login()
+```
 
-    Type `tensorboard --logdir saved/log/` at the project root, then server will open at `http://localhost:6006`
+4. Use the example code snippet below as a template to integrate W&B to your Python script:
 
-By default, values of loss and metrics specified in config file, input images, and histogram of model parameters will be logged.
-If you need more visualizations, use `add_scalar('tag', data)`, `add_image('tag', image)`, etc in the `trainer._train_epoch` method.
-`add_something()` methods in this template are basically wrappers for those of `tensorboardX.SummaryWriter` and `torch.utils.tensorboard.SummaryWriter` modules. 
+```python
+import wandb
 
-**Note**: You don't have to specify current steps, since `WriterTensorboard` class defined at `logger/visualization.py` will track current steps.
+# Start a W&B Run with wandb.init
+run = wandb.init(project="my_first_project")
+
+# Save model inputs and hyperparameters in a wandb.config object
+config = run.config
+config.learning_rate = 0.01
+
+# Model training code here ...
+
+# Log metrics over time to visualize performance with wandb.log
+for i in range(10):
+    run.log({"loss": loss})
+```
+
+That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
+
+<p align='center'>
+<img src="https://github.com/wandb/wandb/blob/main/docs/README_images/wandb_demo_experiments.gif?raw=true" width="100%">
+</p>
+<p align = "center">
+Example W&B Dashboard that shows Runs from an Experiment.
+</p>
+
+&nbsp;
 
 ## Contribution
-Feel free to contribute any kind of function or enhancement, here the coding style follows PEP8
 
-Code should pass the [Flake8](http://flake8.pycqa.org/en/latest/) check before committing.
+- 
 
 ## TODOs
 
-- [ ] Multiple optimizers
-- [ ] Support more tensorboard functions
-- [x] Using fixed random seed
-- [x] Support pytorch native tensorboard
-- [x] `tensorboardX` logger support
-- [x] Configurable logging layout, checkpoint naming
-- [x] Iteration-based training (instead of epoch-based)
-- [x] Adding command line option for fine-tuning
+- [ ] 
 
 ## License
 This project is licensed under the MIT License. See  LICENSE for more details
