@@ -13,7 +13,7 @@ assignees: ''
 ## To Reproduce
 - [ ] 
 
-## Expected behavior : 어떻게 작동해야 하는가
+## Expected behavior
 -
 
 ## Screenshots
