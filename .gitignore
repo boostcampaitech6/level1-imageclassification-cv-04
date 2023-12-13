@@ -125,3 +125,6 @@ SeolHun/
 
 # Docs
 .cache
+
+# ssh key
+aistages.pem
