@@ -1,5 +1,6 @@
 # ${변수} 정의
 NAME="exp"
+WANDB="model_EfficientNetB0MultiHead"
 EPOCH=30
 BATCH=512
 DATASET="MaskSplitByProfileDataset"
@@ -26,5 +27,6 @@ python train.py \
 --augmentation ${AUG} \
 --criterion ${LOSS} \
 --name ${NAME} \
+--wandb ${WANDB} \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}"
