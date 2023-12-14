@@ -150,13 +150,16 @@ class MaskBaseDataset(Dataset):
             )
             sums = []
             squared = []
-            for image_path in self.image_paths[:3000]:
+            samples = random.sample(self.image_paths, 3000)
+            for image_path in samples:
                 image = np.array(Image.open(image_path)).astype(np.int32)
                 sums.append(image.mean(axis=(0, 1)))
                 squared.append((image**2).mean(axis=(0, 1)))
 
             self.mean = np.mean(sums, axis=0) / 255
             self.std = (np.mean(squared, axis=0) - self.mean**2) ** 0.5 / 255
+        
+
 
     def set_transform(self, transform):
         """변환(transform)을 설정하는 메서드"""
