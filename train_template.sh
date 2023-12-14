@@ -7,7 +7,7 @@ DATASET="MaskSplitByProfileDataset"
 DATA_USE=True
 MODEL="EfficientNetB0MultiHead"
 # TODO: 2. model training
-MODEL_ARCH=False
+MODEL_ARCH=0
 AUG="BaseAugmentation"
 LOSS="f1"
 OPT="Adam"
