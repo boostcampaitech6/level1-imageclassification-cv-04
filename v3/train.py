@@ -167,6 +167,7 @@ def train(data_dir, model_dir, args):
 
     # -- logging with wandb
     # -- initialize wandb
+    wandb.init(entity="level1-cv-04")
     wandb.init(project="level1-imageclassification-cv-04")
     # 실행 이름 설정
     wandb.run.name = args.wandb
