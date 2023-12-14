@@ -105,6 +105,8 @@ data/
 input/
 saved/
 datasets/
+v3/train.sh
+v3/wandb
 
 # editor, os cache directory
 .vscode/

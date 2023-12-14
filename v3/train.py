@@ -14,6 +14,7 @@ import torch
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import wandb
 
 from dataset import MaskBaseDataset
 from loss import create_criterion
@@ -159,10 +160,18 @@ def train(data_dir, model_dir, args):
     )
     scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
 
-    # -- logging
+    # -- logging with tensorboard
     logger = SummaryWriter(log_dir=save_dir)
     with open(os.path.join(save_dir, "config.json"), "w", encoding="utf-8") as f:
         json.dump(vars(args), f, ensure_ascii=False, indent=4)
+
+    # -- logging with wandb
+    # -- initialize wandb
+    wandb.init(project="level1-imageclassification-cv-04")
+    # 실행 이름 설정
+    wandb.run.name = args.wandb
+    wandb.run.save()
+    wandb.config.update(args)
 
     best_val_acc = 0
     best_val_loss = np.inf
@@ -214,6 +223,7 @@ def train(data_dir, model_dir, args):
                     f"Epoch[{epoch}/{args.epochs}]({idx + 1}/{len(train_loader)}) || "
                     f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
                 )
+                # tensorboard: 학습 단계에서 Loss, Accuracy 로그 저장
                 logger.add_scalar(
                     "Train/loss", train_loss, epoch * len(train_loader) + idx
                 )
@@ -223,6 +233,12 @@ def train(data_dir, model_dir, args):
 
                 loss_value = 0
                 matches = 0
+
+                # wandb: 학습 단계에서 Loss, Accuracy 로그 저장
+                wandb.log({
+                    "Train loss": train_loss,
+                    "Train acc" : train_acc
+                })
 
         scheduler.step()
 
@@ -295,10 +311,18 @@ def train(data_dir, model_dir, args):
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
                 f"best acc : {best_val_acc:4.2%}, best loss: {best_val_loss:4.2}"
             )
+            # tensorboard: 검증 단계에서 Loss, Accuracy 로그 저장
             logger.add_scalar("Val/loss", val_loss, epoch)
             logger.add_scalar("Val/accuracy", val_acc, epoch)
             logger.add_figure("results", figure, epoch)
             print()
+
+            # wandb: 검증 단계에서 Loss, Accuracy 로그 저장
+            wandb.log({
+                "Valid loss": val_loss,
+                "Valid acc" : val_acc,
+                "results": wandb.Image(figure),
+            })
 
 
 if __name__ == "__main__":
@@ -377,6 +401,10 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--name", default="exp", help="model save at {SM_MODEL_DIR}/{name}"
+    )
+    parser.add_argument(
+        "--wandb", default="exp", 
+        help="wandb run name. 실험 대상이 되는 \"arg종류_arg값\" 형태로 적어주세요 (예: model_EfficientNetB4)."
     )
     parser.add_argument(
         "--multi_head", 
