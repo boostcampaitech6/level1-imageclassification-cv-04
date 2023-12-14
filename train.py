@@ -200,6 +200,10 @@ if __name__ == '__main__':
         "--name", default="exp", help="model save at {SM_MODEL_DIR}/{name}"
     )
     parser.add_argument(
+        "--wandb", default="model_EfficientNetB0", 
+        help="wandb run name. 실험 대상이 되는 \"arg종류_arg값\" 형태로 적어주세요 (예: model_EfficientNetB4)."
+    )
+    parser.add_argument(
         "--multi_head", 
         type=bool,
         default=True,
