@@ -205,14 +205,14 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--multi_head", 
-        type=bool,
-        default=True,
+        type=int,
+        default=1,
         help="모델의 head가 1개(num_classes=18)인 경우 False, 3개인 경우 True"
     )
     parser.add_argument(
         "--use_caution_data",
-        type=bool,
-        default=True,
+        type=int,
+        default=1,
         help="성별 판별이 어려운 데이터(EDA-오류처럼 보이는 데이터) 사용 여부"
     )
 
