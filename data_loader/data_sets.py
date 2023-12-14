@@ -33,6 +33,7 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
     ):
         self.indices = defaultdict(list)
         super().__init__(data_dir, multi_head, use_caution, mean, std, val_ratio)
+        print("data_sets.py -> __init__:", multi_head)
 
     @staticmethod
     def _split_profile(profiles, val_ratio):

@@ -206,7 +206,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--multi_head", 
         type=bool,
-        default=True,
+        default=False,
         help="모델의 head가 1개(num_classes=18)인 경우 False, 3개인 경우 True"
     )
     parser.add_argument(

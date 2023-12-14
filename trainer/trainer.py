@@ -78,7 +78,7 @@ class Trainer(BaseTrainer):
         
         for idx, train_batch in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
-
+            print("trainer.py -> _train_epoch:", self.config.multi_head)
             if self.config.multi_head:
                 inputs, labels, mask, gender, age = train_batch
                 inputs = inputs.to(self.device)
@@ -160,6 +160,7 @@ class Trainer(BaseTrainer):
             figure = None
 
             for val_batch in self.valid_dataloader:
+                print("trainer.py -> _valid_epoch:", self.config.multi_head)
                 if self.config.multi_head:
                     inputs, labels, mask, gender, age = val_batch
                     inputs = inputs.to(self.device)

@@ -96,6 +96,7 @@ class MaskBaseDataset(Dataset):
     ):
         self.data_dir = data_dir
         self.multi_head = multi_head
+        print("base_data_set.py:", self.multi_head)
         self.use_caution = use_caution
         self.mean = mean
         self.std = std
@@ -177,9 +178,11 @@ class MaskBaseDataset(Dataset):
         multi_class_label = self.encode_multi_class(mask_label, gender_label, age_label)
 
         if self.multi_head:
+            print("__getitem__ -> if self.multi_head:", self.multi_head)
             return image_transform, multi_class_label, mask_label, gender_label, age_label
             
         else:
+            print("__getitem__ -> else:", self.multi_head)
             return image_transform, multi_class_label
 
     def __len__(self):

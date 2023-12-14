@@ -13,6 +13,7 @@ class BaseTrainer:
 
         self.start_epoch = 1
         self.checkpoint_dir = self.config.model_dir
+        print("base_trainer.py -> __init__:", self.config.multi_head)
 
 
     @abstractmethod
