@@ -211,8 +211,8 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--use_caution_data",
-        type=bool,
-        default=False,
+        type=int,
+        default=1,
         help="성별 판별이 어려운 데이터(EDA-오류처럼 보이는 데이터) 사용 여부"
     )
 
