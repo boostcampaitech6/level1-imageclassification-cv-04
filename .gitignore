@@ -124,8 +124,6 @@ code/
 data/
 cmj/
 SeolHun/
-wandb/
-results/
 
 # Docs
 .cache

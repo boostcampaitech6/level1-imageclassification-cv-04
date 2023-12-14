@@ -7,14 +7,14 @@ DATASET="MaskSplitByProfileDataset"
 DATA_USE=True
 MODEL="EfficientNetB0MultiHead"
 # TODO: 2. model training
-MODEL_ARCH=0
+MODEL_ARCH=True
 AUG="BaseAugmentation"
 LOSS="f1"
 OPT="Adam"
 # TODO: 7. lr scheduler
 # TODO: 8. additional
 DATA_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/data"
-OUTPUT_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/results"
+OUTPUT_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/code/v3/results"
 
 # run with args
 python train.py \

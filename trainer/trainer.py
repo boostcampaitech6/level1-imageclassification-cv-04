@@ -78,6 +78,7 @@ class Trainer(BaseTrainer):
         
         for idx, train_batch in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
+
             if self.config.multi_head:
                 inputs, labels, mask, gender, age = train_batch
                 inputs = inputs.to(self.device)
