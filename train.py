@@ -124,7 +124,7 @@ if __name__ == '__main__':
         "--seed", type=int, default=42, help="random seed (default: 42)"
     )
     parser.add_argument(
-        "--epochs", type=int, default=64, help="number of epochs to train (default: 64)"
+        "--epochs", type=int, default=30, help="number of epochs to train (default: 64)"
     )
     parser.add_argument(
         "--dataset",
