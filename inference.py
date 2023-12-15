@@ -14,6 +14,13 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchvision.transforms import Resize, ToTensor, Normalize
 
+def decode_pred(mask,gender,age):
+    mask_dict = { 0:"MASK", 1:"INCORRECT", 2:"NORMAL"}
+    gender_dict = {0:"MALE", 1:"FEMALE"}
+    age_dict = {0:'YOUNG',1:'MIDDLE',2:'OLD'}
+    
+    return mask_dict[mask],gender_dict[gender],age_dict[age]
+
 
 class TestDataset(Dataset):
     def __init__(self, img_paths, transform):
@@ -61,6 +68,10 @@ def main(config):
 
     # 모델이 테스트 데이터셋을 예측하고 결과를 저장합니다.
     all_predictions = []
+    pred_masks = []
+    pred_genders = []
+    pred_ages = []
+
     for images in tqdm(loader):
         with torch.no_grad():
             images = images.to(device)
@@ -70,11 +81,23 @@ def main(config):
                 pred_mask, pred_gender, pred_age = pred
                 pred = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
                 all_predictions.extend(pred.cpu().numpy())
+
+                pred_masks.extend(torch.argmax(pred_mask, dim=-1).cpu().numpy())
+                pred_genders.extend(torch.argmax(pred_gender, dim=-1).cpu().numpy())
+                pred_ages.extend(torch.argmax(pred_age, dim=-1).cpu().numpy())
             else:
                 pred = model(images)
                 pred = pred.argmax(dim=-1)
                 all_predictions.extend(pred.cpu().numpy())
+                
     submission['ans'] = all_predictions
+
+    submission["mask"] = pred_masks
+    submission["gender"] = pred_genders
+    submission["age"] = pred_ages
+    
+    for i in range(len(submission)):
+        submission["mask"][i],submission["gender"][i],submission["age"][i] = decode_pred(submission["mask"][i],submission["gender"][i],submission["age"][i])
 
     # 제출할 파일을 저장합니다.
     submission.to_csv(os.path.join(config.test_dir, 'submission.csv'), index=False)
