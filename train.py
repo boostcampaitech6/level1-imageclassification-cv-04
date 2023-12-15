@@ -101,6 +101,7 @@ def main(data_dir, model_dir, config):
     optimizer = optimizer_module(
         trainable_params,
         lr=config.lr,
+        eps=1e-6,   # NOTE: For CLIP model
     )
     lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
 

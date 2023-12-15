@@ -1,7 +1,9 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from base.base_model import BaseModel
 import timm
+import clip # https://github.com/openai/CLIP
 
 
 class MnistModel(BaseModel):
@@ -85,3 +87,46 @@ class MyModel(nn.Module):
         2. 결과로 나온 output 을 return 해주세요
         """
         return x
+
+class CLIP1Head(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+            
+        for name, param in self.model.named_parameters():
+            if "visual.proj" in name or "text_projection" in name:
+                param.requires_grad_(True)
+            else: 
+                param.requires_grad_(False)
+        
+        captions = [
+            "A photo of a young man wearing a mask that covers his nose and mouth.",
+            "A photo of a middle-aged man wearing a mask that covers his nose and mouth.",
+            "A photo of a elderly man wearing a mask that covers his nose and mouth.",
+            "A photo of a young woman wearing a mask that covers her nose and mouth.",
+            "A photo of a middle-aged woman wearing a mask that covers her nose and mouth.",
+            "A photo of a elderly woman wearing a mask that covers her nose and mouth.",
+            "A photo of a young man wearing a mask improperly.",
+            "A photo of a middle-aged man wearing a mask improperly.",
+            "A photo of a elderly man wearing a mask improperly.",
+            "A photo of a young woman wearing a mask improperly.",
+            "A photo of a middle-aged woman wearing a mask improperly.",
+            "A photo of a elderly woman wearing a mask improperly.",
+            "A photo of a young man not wearing a mask.",
+            "A photo of a middle-aged man not wearing a mask.",
+            "A photo of an elderly man not wearing a mask.",
+            "A photo of a young woman not wearing a mask.",
+            "A photo of a middle-aged woman not wearing a mask.",
+            "A photo of an elderly woman not wearing a mask.",
+        ]
+        self.captions = clip.tokenize([text for text in captions]).to(self.device)
+
+    def forward(self, x):
+        image_features = self.model.encode_image(x) # NOTE: need to resize (224, 224)
+        text_features = self.model.encode_text(self.captions)
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)   
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+        similarity = (100.0 * image_features @ text_features.T)
+        return similarity

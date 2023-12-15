@@ -39,7 +39,7 @@ class Trainer(BaseTrainer):
 
         # logging with wandb
         # wandb.init(entity="level1-cv-04")
-        wandb.init(project="level1-imageclassification-cv-04")
+        wandb.init(project="level1-imageclassification-cv-04", entity="level1-cv-04") # NOTE: 다른 팀이 있을 경우에 entity를 설정해주어야 한다.
         # 실행 이름 설정
         wandb.run.name = self.config.wandb
         wandb.run.save()
