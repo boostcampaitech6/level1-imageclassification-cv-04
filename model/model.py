@@ -1,7 +1,10 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from base.base_model import BaseModel
 import timm
+from model.arcface_resnet import resnet_face18
+from model.arcface_metrics import *
 
 
 class MnistModel(BaseModel):
@@ -66,7 +69,64 @@ class EfficientNetB0MultiHead(BaseModel):
         gender = self.gender(x)
         age = self.age(x)
         return mask, gender, age
-    
+
+
+class ArcfaceResNetMultiHead(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = resnet_face18(use_se=True)
+        self.model.load_state_dict(torch.load('./model/pretrained/arcface_resnet18_110_t.pth')) # num_features : 
+        for param in self.model.parameters():
+            param.requires_grad = False 
+
+        metric = 'arc_margin' # TODO: args 받아오기. hardcoded
+        if metric == 'add_margin':
+            self.metric_fc = AddMarginProduct(512, num_classes, s=30, m=0.35)
+        elif metric == 'arc_margin':
+            self.metric_fc = ArcMarginProduct(512, num_classes, s=30, m=0.5, easy_margin=False) # easy_margin hardcoded
+        elif metric == 'sphere':
+            self.metric_fc = SphereProduct(512, num_classes, m=4)
+        else:
+            self.metric_fc = nn.Linear(512, num_classes)
+
+        self.mask = nn.Sequential(
+            nn.Linear(1280, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+
+        self.age = nn.Sequential(
+            nn.Linear(1280, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+        
+        self.gender = nn.Sequential(
+            nn.Linear(1280, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x):
+        x = self.model(x)
+        x = self.metric_fc(x)
+        mask = self.mask(x)
+        gender = self.gender(x)
+        age = self.age(x)
+        return mask, gender, age
+
 
 # Custom Model Template
 class MyModel(nn.Module):

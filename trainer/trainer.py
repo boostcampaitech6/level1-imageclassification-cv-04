@@ -158,6 +158,15 @@ class Trainer(BaseTrainer):
             val_acc_items = []
             figure = None
 
+            if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                # wandb table for validation
+                if self.config.multi_head:
+                    columns = ["image", "mask_gt", "mask_predict", "gender_gt", "gender_predict", "age_gt", "age_predict"]
+                    val_table = wandb.Table(columns=columns)
+                else:
+                    columns = ["image", "gt", "predict"]
+                    val_table = wandb.Table(columns=columns)
+
             for val_batch in self.valid_dataloader:
                 if self.config.multi_head:
                     inputs, labels, mask, gender, age = val_batch
@@ -176,6 +185,21 @@ class Trainer(BaseTrainer):
                     loss_item = (loss_mask + loss_gender + loss_age).item()
                     preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
+                    # val_table logging
+                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                        inputs_np = (
+                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
+                        )
+                        inputs_np = self.denormalize_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
+                        for input, m_gt, m_pt, g_gt, g_pt, a_gt, a_pt in zip(inputs_np, mask, torch.argmax(pred_mask, dim=-1), gender, torch.argmax(pred_gender, dim=-1), age, torch.argmax(pred_age, dim=-1)):
+                            if self.config.save_val_table == 2:
+                                if m_gt != m_pt or g_gt != g_pt or a_gt != a_pt:
+                                    val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
+                            else:
+                                val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
+
                 else:
                     inputs, labels = val_batch
                     inputs = inputs.to(self.device)
@@ -185,6 +209,21 @@ class Trainer(BaseTrainer):
                     preds = torch.argmax(outs, dim=-1)
 
                     loss_item = self.criterion(outs, labels).item()
+
+                    # val_table logging
+                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                        inputs_np = (
+                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
+                        )
+                        inputs_np = self.denormalize_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
+                        for input, gt, pred in zip(inputs_np, labels, preds):
+                            if self.config.save_val_table == 2:
+                                if gt != pred:
+                                    val_table.add_data(wandb.Image(input), gt, pred)
+                            else:
+                                val_table.add_data(wandb.Image(input), gt, pred)
 
                 acc_item = (labels == preds).sum().item()
                 val_loss_items.append(loss_item)
@@ -234,6 +273,8 @@ class Trainer(BaseTrainer):
                 "Valid acc" : val_acc,
                 "results": wandb.Image(figure),
             })
+            if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                wandb.log({f"{self.config.wandb}_val_table": val_table})
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'

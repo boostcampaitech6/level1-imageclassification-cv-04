@@ -108,6 +108,8 @@ datasets/
 v3/train.sh
 v3/wandb
 train.sh
+model/pretrained/
+model/checkpoint_transform.py
 
 # editor, os cache directory
 .vscode/
