@@ -1,11 +1,11 @@
 # ${변수} 정의
 NAME="exp"
-WANDB="model_CLIP3Head3Proj_Gender"
-EPOCH=10
+WANDB="model_CLIP3Head3Proj_Aggregation"
+EPOCH=20
 BATCH=512    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
-MODEL="CLIP3Head3Proj"
+MODEL="CLIP3Head3Proj_Aggregation"
 # TODO: 2. model training
 MODEL_ARCH=1
 AUG="BaseAugmentation"
@@ -33,5 +33,5 @@ python train.py \
 --wandb ${WANDB} \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}" \
---target gender \
+--lr 0.001 \
 --resize 224 224   # For CLIP model

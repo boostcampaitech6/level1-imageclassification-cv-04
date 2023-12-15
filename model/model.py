@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from base.base_model import BaseModel
 import timm
 import clip # https://github.com/openai/CLIP
+import copy 
 
 
 class MnistModel(BaseModel):
@@ -248,6 +249,99 @@ class CLIP3Head3Proj(nn.Module):
         self.mask_captions = clip.tokenize([text for text in mask_captions]).to(self.device)
         self.gender_captions = clip.tokenize([text for text in gender_captions]).to(self.device)
         self.age_captions = clip.tokenize([text for text in age_captions]).to(self.device)
+
+    def forward(self, x):
+        image_features = self.model.encode_image(x).type(torch.float32)
+        
+        image_mask_features = self.mask_i(image_features)
+        image_mask_features = image_mask_features / image_mask_features.norm(dim=-1, keepdim=True)
+        
+        image_gender_features = self.gender_i(image_features)
+        image_gender_features = image_gender_features / image_gender_features.norm(dim=-1, keepdim=True)
+        
+        image_age_features = self.age_i(image_features)
+        image_age_features = image_age_features / image_age_features.norm(dim=-1, keepdim=True)
+
+        text_mask_features = self.model.encode_text(self.mask_captions).type(torch.float32)
+        text_mask_features = self.mask_t(text_mask_features)
+        text_mask_features = text_mask_features / text_mask_features.norm(dim=-1, keepdim=True)
+
+        text_gender_features = self.model.encode_text(self.gender_captions).type(torch.float32)
+        text_gender_features = self.gender_t(text_gender_features)
+        text_gender_features = text_gender_features / text_gender_features.norm(dim=-1, keepdim=True)
+
+        text_age_features = self.model.encode_text(self.age_captions).type(torch.float32)
+        text_age_features = self.age_t(text_age_features)
+        text_age_features = text_age_features / text_age_features.norm(dim=-1, keepdim=True)
+
+        mask_logits = (100.0 * image_mask_features @ text_mask_features.T)
+        gender_logits = (100.0 * image_gender_features @ text_gender_features.T)
+        age_logits = (100.0 * image_age_features @ text_age_features.T)
+        
+        return mask_logits, gender_logits, age_logits
+    
+class CLIP3Head3Proj_Aggregation(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        
+        # load pretrained heads
+        print("loading age model...", end=' ')
+        pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
+        model_path = "/data/ephemeral/home/output/exp25/best.pth"
+        pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
+        pretrained_model.eval()
+        self.age_i = copy.deepcopy(pretrained_model.age_i)
+        self.age_t = copy.deepcopy(pretrained_model.age_t)
+        print("done.")
+        
+        print("loading gender model...", end=' ')
+        pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
+        model_path = "/data/ephemeral/home/output/exp26/best.pth"
+        pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
+        pretrained_model.eval()
+        self.gender_i = copy.deepcopy(pretrained_model.gender_i)
+        self.gender_t = copy.deepcopy(pretrained_model.gender_t)
+        print("done.")
+        
+        print("loading mask model...", end=' ')
+        pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
+        model_path = "/data/ephemeral/home/output/exp27/best.pth"
+        pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
+        pretrained_model.eval()
+        self.mask_i = copy.deepcopy(pretrained_model.mask_i)
+        self.mask_t = copy.deepcopy(pretrained_model.mask_t)
+        print("done.")
+        
+        del pretrained_model    # free
+            
+        for name, param in self.model.named_parameters():
+            param.requires_grad_(False)
+        # for name, param in self.named_parameters():
+        #     if param.requires_grad:
+        #         print(f'{name} will be trained.')
+        
+        mask_captions = [
+            'A person correctly wearing a mask, covering mouth and nose completely.',
+            'A photo of improper mask usage, with either the mouth or nose exposed.',
+            'A photo of a person without mask.',
+        ]
+        gender_captions = [
+            'a photo of a man.',
+            'a photo of an woman.',
+        ]
+        age_captions = [
+            'a photo of a young person.',
+            'a photo of a middle-aged person.',
+            'A photo of a person in old age.',
+        ]
+        
+        self.mask_captions = clip.tokenize([text for text in mask_captions]).to(self.device)
+        self.gender_captions = clip.tokenize([text for text in gender_captions]).to(self.device)
+        self.age_captions = clip.tokenize([text for text in age_captions]).to(self.device)
+        
 
     def forward(self, x):
         image_features = self.model.encode_image(x).type(torch.float32)
