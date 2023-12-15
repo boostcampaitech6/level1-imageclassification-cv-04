@@ -226,6 +226,12 @@ if __name__ == '__main__':
     parser.add_argument(
         "--model_dir", type=str, default=os.environ.get("SM_MODEL_DIR", "/data/ephemeral/home/model")
     )
+    
+    # Train target    
+    parser.add_argument(
+        "--target", type=str, default=""
+    )
+
 
     args = parser.parse_args()
     print(args)

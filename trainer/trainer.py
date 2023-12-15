@@ -76,24 +76,42 @@ class Trainer(BaseTrainer):
         loss_value = 0
         matches = 0
         
+        tgt2idx = {'mask':0, 'gender': 1, 'age': 2}
+        
         for idx, train_batch in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
             if self.config.multi_head:
-                inputs, labels, mask, gender, age = train_batch
-                inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
-                mask = mask.to(self.device)
-                gender = gender.to(self.device)
-                age = age.to(self.device)
+                if self.config.target:
+                    assert self.config.target == 'mask' or self.config.target == 'gender' or self.config.target == 'age'
+                    
+                    target_index = tgt2idx[self.config.target]
 
-                outs = self.model(inputs)
-                pred_mask, pred_gender, pred_age = outs
+                    inputs, labels, mask, gender, age = train_batch
+                    targets = (mask, gender, age)
+                    target = targets[target_index]
+                    target = target.to(self.device)
+                    
+                    out = self.model(inputs)[target_index]
+                    loss = self.criterion(out, target)
+                    
+                    preds = torch.argmax(out, dim=-1)
+                
+                else:
+                    inputs, labels, mask, gender, age = train_batch
+                    inputs = inputs.to(self.device)
+                    labels = labels.to(self.device)
+                    mask = mask.to(self.device)
+                    gender = gender.to(self.device)
+                    age = age.to(self.device)
 
-                loss_mask = self.criterion(pred_mask, mask)
-                loss_gender = self.criterion(pred_gender, gender)
-                loss_age = self.criterion(pred_age, age)
-                loss = loss_mask + loss_gender + loss_age
-                preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                    outs = self.model(inputs)
+                    pred_mask, pred_gender, pred_age = outs
+
+                    loss_mask = self.criterion(pred_mask, mask)
+                    loss_gender = self.criterion(pred_gender, gender)
+                    loss_age = self.criterion(pred_age, age)
+                    loss = loss_mask + loss_gender + loss_age
+                    preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
             else:
                 inputs, labels = train_batch
@@ -109,7 +127,10 @@ class Trainer(BaseTrainer):
             self.optimizer.step()
             
             loss_value += loss.item()
-            matches += (preds == labels).sum().item()
+            if self.config.target:
+                matches += (preds == target).sum().item()
+            else:
+                matches += (preds == labels).sum().item()
             if (idx + 1) % self.config.log_interval == 0:
                 train_loss = loss_value / self.config.log_interval
                 train_acc = matches / self.config.batch_size / self.config.log_interval
@@ -158,23 +179,40 @@ class Trainer(BaseTrainer):
             val_acc_items = []
             figure = None
 
+            tgt2idx = {'mask':0, 'gender': 1, 'age': 2}
+
             for val_batch in self.valid_dataloader:
                 if self.config.multi_head:
-                    inputs, labels, mask, gender, age = val_batch
-                    inputs = inputs.to(self.device)
-                    labels = labels.to(self.device)
-                    mask = mask.to(self.device)
-                    gender = gender.to(self.device)
-                    age = age.to(self.device)
+                    if self.config.target:
+                        assert self.config.target == 'mask' or self.config.target == 'gender' or self.config.target == 'age'
+                        
+                        target_index = tgt2idx[self.config.target]
 
-                    outs = self.model(inputs)
-                    pred_mask, pred_gender, pred_age = outs
+                        inputs, labels, mask, gender, age = val_batch
+                        targets = (mask, gender, age)
+                        target = targets[target_index]
+                        target = target.to(self.device)
+                        
+                        out = self.model(inputs)[target_index]
+                        loss_item = self.criterion(out, target).item()
+                        preds = torch.argmax(out, dim=-1)
+                    
+                    else:
+                        inputs, labels, mask, gender, age = val_batch
+                        inputs = inputs.to(self.device)
+                        labels = labels.to(self.device)
+                        mask = mask.to(self.device)
+                        gender = gender.to(self.device)
+                        age = age.to(self.device)
 
-                    loss_mask = self.criterion(pred_mask, mask)
-                    loss_gender = self.criterion(pred_gender, gender)
-                    loss_age = self.criterion(pred_age, age)
-                    loss_item = (loss_mask + loss_gender + loss_age).item()
-                    preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                        outs = self.model(inputs)
+                        pred_mask, pred_gender, pred_age = outs
+
+                        loss_mask = self.criterion(pred_mask, mask)
+                        loss_gender = self.criterion(pred_gender, gender)
+                        loss_age = self.criterion(pred_age, age)
+                        loss_item = (loss_mask + loss_gender + loss_age).item()
+                        preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
                 else:
                     inputs, labels = val_batch
@@ -186,7 +224,10 @@ class Trainer(BaseTrainer):
 
                     loss_item = self.criterion(outs, labels).item()
 
-                acc_item = (labels == preds).sum().item()
+                if self.config.target:
+                    acc_item = (target == preds).sum().item()                
+                else:
+                    acc_item = (labels == preds).sum().item()
                 val_loss_items.append(loss_item)
                 val_acc_items.append(acc_item)
 

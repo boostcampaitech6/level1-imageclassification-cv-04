@@ -1,15 +1,15 @@
 # ${변수} 정의
 NAME="exp"
-WANDB="model_CLIP1Head"
-EPOCH=30
-BATCH=512
+WANDB="model_CLIP3Head3Proj_Gender"
+EPOCH=10
+BATCH=512    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
-MODEL="CLIP1Head"
+MODEL="CLIP3Head3Proj"
 # TODO: 2. model training
-MODEL_ARCH=0
+MODEL_ARCH=1
 AUG="BaseAugmentation"
-LOSS="cross_entropy"
+LOSS="f1"
 OPT="Adam"
 # TODO: 7. lr scheduler
 # TODO: 8. additional
@@ -33,4 +33,5 @@ python train.py \
 --wandb ${WANDB} \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}" \
+--target gender \
 --resize 224 224   # For CLIP model
