@@ -76,6 +76,10 @@ class Trainer(BaseTrainer):
         loss_value = 0
         matches = 0
         
+        acc_mask_items = []  
+        acc_gender_items = []  
+        acc_age_items = []  
+
         for idx, train_batch in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
             if self.config.multi_head:
@@ -94,6 +98,15 @@ class Trainer(BaseTrainer):
                 loss_age = self.criterion(pred_age, age)
                 loss = loss_mask + loss_gender + loss_age
                 preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+
+                acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+
+                acc_mask_items.append(acc_mask)
+                acc_gender_items.append(acc_gender)
+                acc_age_items.append(acc_age)
+
 
             else:
                 inputs, labels = train_batch
@@ -116,7 +129,8 @@ class Trainer(BaseTrainer):
                 current_lr = self.get_lr(self.optimizer)
                 print(
                     f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
-                    f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
+                    f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || "
+                    f"mask accuracy {np.mean(acc_mask_items):4.2%} || gender accuracy {np.mean(acc_gender_items):4.2%} || age accuracy {np.mean(acc_age_items):4.2%} ||  lr {current_lr}"
                 )
 
                 # tensorboard: 학습 단계에서 Loss, Accuracy 로그 저장
@@ -131,10 +145,14 @@ class Trainer(BaseTrainer):
                 matches = 0   
 
                 # wandb: 학습 단계에서 Loss, Accuracy 로그 저장
-                wandb.log({
-                    "Train loss": train_loss,
-                    "Train acc" : train_acc
-                })
+                # wandb.log({
+                #     "Train loss": train_loss,
+                #     "Train acc" : train_acc
+                #     "Train acc mask": np.mean(acc_mask_items),
+                #     "Train acc gender": np.mean(acc_gender_items),
+                #     "Train acc age": np.mean(acc_age_items)
+
+                # })
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
@@ -156,6 +174,11 @@ class Trainer(BaseTrainer):
             print("Calculating validation results...")
             val_loss_items = []
             val_acc_items = []
+
+            val_acc_mask_items = []
+            val_acc_gender_items = []
+            val_acc_age_items = []
+
             figure = None
 
             for val_batch in self.valid_dataloader:
@@ -175,6 +198,15 @@ class Trainer(BaseTrainer):
                     loss_age = self.criterion(pred_age, age)
                     loss_item = (loss_mask + loss_gender + loss_age).item()
                     preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                    
+                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+
+                    val_acc_mask_items.append(acc_mask)
+                    val_acc_gender_items.append(acc_gender)
+                    val_acc_age_items.append(acc_age)
+
 
                 else:
                     inputs, labels = val_batch
@@ -218,7 +250,8 @@ class Trainer(BaseTrainer):
                 self.best_val_acc = val_acc
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
             print(
-                f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
+                f"[Val] acc : {val_acc:4.2%}, mask acc : {np.mean(val_acc_mask_items):4.2%}"
+                f"gender acc : {np.mean(val_acc_gender_items):4.2%}, age acc : {np.mean(val_acc_age_items):4.2%}, loss: {val_loss:4.2} || "
                 f"best acc : {self.best_val_acc:4.2%}, best loss: {self.best_val_loss:4.2}"
             )
 
@@ -229,11 +262,17 @@ class Trainer(BaseTrainer):
             print()
 
             # wandb: 검증 단계에서 Loss, Accuracy 로그 저장
-            wandb.log({
-                "Valid loss": val_loss,
-                "Valid acc" : val_acc,
-                "results": wandb.Image(figure),
-            })
+            # wandb.log({
+            #     "Valid loss": val_loss,
+            #     "Valid acc" : val_acc,
+            #     "Valid acc_mask" : np.mean(val_acc_mask_items),
+            #     "Valid acc_gender" : np.mean(val_acc_gender_items),
+            #     "Valid acc_age" : np.mean(val_acc_age_items),
+
+
+            #     "results": wandb.Image(figure),
+            # })
+    
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'
