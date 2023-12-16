@@ -11,6 +11,7 @@ from torchvision.utils import make_grid
 from base.base_trainer import BaseTrainer
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
+from model.arcface_metrics import *
 
 
 class Trainer(BaseTrainer):
@@ -75,6 +76,10 @@ class Trainer(BaseTrainer):
         self.model.train()
         loss_value = 0
         matches = 0
+
+        acc_mask_items = []
+        acc_gender_items = []
+        acc_age_items = []
         
         for idx, train_batch in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
@@ -86,7 +91,10 @@ class Trainer(BaseTrainer):
                 gender = gender.to(self.device)
                 age = age.to(self.device)
 
-                outs = self.model(inputs)
+                if self.config.model == "ArcfaceMultiHead":
+                    outs = self.model(inputs, mask, gender, age)
+                else:
+                    outs = self.model(inputs)
                 pred_mask, pred_gender, pred_age = outs
 
                 loss_mask = self.criterion(pred_mask, mask)
@@ -94,6 +102,14 @@ class Trainer(BaseTrainer):
                 loss_age = self.criterion(pred_age, age)
                 loss = loss_mask + loss_gender + loss_age
                 preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+
+                acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+
+                acc_mask_items.append(acc_mask)
+                acc_gender_items.append(acc_gender)
+                acc_age_items.append(acc_age)
 
             else:
                 inputs, labels = train_batch
@@ -137,7 +153,8 @@ class Trainer(BaseTrainer):
                 })
 
         if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+            if self.config.scheduler != "ReduceLROnPlateau":
+                self.lr_scheduler.step()
 
         if self.do_validation:
             self._valid_epoch(epoch)
@@ -156,6 +173,11 @@ class Trainer(BaseTrainer):
             print("Calculating validation results...")
             val_loss_items = []
             val_acc_items = []
+
+            val_acc_mask_items = []
+            val_acc_gender_items = []
+            val_acc_age_items = []
+
             figure = None
 
             if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
@@ -176,7 +198,10 @@ class Trainer(BaseTrainer):
                     gender = gender.to(self.device)
                     age = age.to(self.device)
 
-                    outs = self.model(inputs)
+                    if self.config.model == "ArcfaceMultiHead":
+                        outs = self.model(inputs, mask, gender, age)
+                    else:
+                        outs = self.model(inputs)
                     pred_mask, pred_gender, pred_age = outs
 
                     loss_mask = self.criterion(pred_mask, mask)
@@ -184,6 +209,14 @@ class Trainer(BaseTrainer):
                     loss_age = self.criterion(pred_age, age)
                     loss_item = (loss_mask + loss_gender + loss_age).item()
                     preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+
+                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+
+                    val_acc_mask_items.append(acc_mask)
+                    val_acc_gender_items.append(acc_gender)
+                    val_acc_age_items.append(acc_age)
 
                     # val_table logging
                     if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
@@ -215,9 +248,14 @@ class Trainer(BaseTrainer):
                         inputs_np = (
                             torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                         )
-                        inputs_np = self.denormalize_image(
-                            inputs_np, self.dataset_mean, self.dataset_std
-                        )
+                        if self.config.model == "ArcfaceMultiHead":
+                            inputs_np = self.denormalize_arcface_image(
+                                inputs_np, self.dataset_mean, self.dataset_std
+                            )
+                        else:
+                            inputs_np = self.denormalize_image(
+                                inputs_np, self.dataset_mean, self.dataset_std
+                            )
                         for input, gt, pred in zip(inputs_np, labels, preds):
                             if self.config.save_val_table == 2:
                                 if gt != pred:
@@ -233,9 +271,14 @@ class Trainer(BaseTrainer):
                     inputs_np = (
                         torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                     )
-                    inputs_np = self.denormalize_image(
-                        inputs_np, self.dataset_mean, self.dataset_std
-                    )
+                    if self.config.model == "ArcfaceMultiHead":
+                        inputs_np = self.denormalize_arcface_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
+                    else:
+                        inputs_np = self.denormalize_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
                     figure = self.grid_image(
                         inputs_np,
                         labels,
@@ -256,11 +299,22 @@ class Trainer(BaseTrainer):
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
-            print(
-                f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
-                f"best acc : {self.best_val_acc:4.2%}, best loss: {self.best_val_loss:4.2}"
-            )
+            if self.config.multi_head:
+                print(
+                    f"[Val] acc : {val_acc:4.2%} || mask acc : {np.mean(val_acc_mask_items):4.2%} || "
+                    f"gender acc : {np.mean(val_acc_gender_items):4.2%} || age acc : {np.mean(val_acc_age_items):4.2%} || loss: {val_loss:4.2} || "
+                    f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
+                )
+            else:
+                print(
+                    f"[Val] acc : {val_acc:4.2%} || loss: {val_loss:4.2} || "
+                    f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
+                )
 
+            # "ReduceLROnPlateau" scheduler step
+            if self.config.scheduler == "ReduceLROnPlateau":
+                self.lr_scheduler.step(val_acc) # TODO val_acc? val_loss?
+            
             # tensorboard: 검증 단계에서 Loss, Accuracy 로그 저장
             self.logger.add_scalar("Val/loss", val_loss, epoch)
             self.logger.add_scalar("Val/accuracy", val_acc, epoch)
@@ -268,11 +322,21 @@ class Trainer(BaseTrainer):
             print()
 
             # wandb: 검증 단계에서 Loss, Accuracy 로그 저장
-            wandb.log({
-                "Valid loss": val_loss,
-                "Valid acc" : val_acc,
-                "results": wandb.Image(figure),
-            })
+            if self.config.multi_head:
+                wandb.log({
+                    "Valid loss": val_loss,
+                    "Valid acc" : val_acc,
+                    "Valid acc_mask" : np.mean(val_acc_mask_items),
+                    "Valid acc_gender" : np.mean(val_acc_gender_items),
+                    "Valid acc_age" : np.mean(val_acc_age_items),
+                    "results": wandb.Image(figure),
+                })
+            else:
+                wandb.log({
+                    "Valid loss": val_loss,
+                    "Valid acc" : val_acc,
+                    "results": wandb.Image(figure),
+                })
             if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
                 wandb.log({f"{self.config.wandb}_val_table": val_table})
 
@@ -291,6 +355,15 @@ class Trainer(BaseTrainer):
         img_cp = image.copy()
         img_cp *= std
         img_cp += mean
+        img_cp *= 255.0
+        img_cp = np.clip(img_cp, 0, 255).astype(np.uint8)
+        return img_cp
+    
+    def denormalize_arcface_image(self, image, mean, std):
+        """정규화된 이미지를 원래대로 되돌리는 메서드"""
+        img_cp = image.copy()
+        img_cp *= 0.5
+        img_cp += 0.5
         img_cp *= 255.0
         img_cp = np.clip(img_cp, 0, 255).astype(np.uint8)
         return img_cp

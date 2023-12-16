@@ -94,6 +94,8 @@ def main(data_dir, model_dir, config):
 
     # get function handles of loss and metrics
     criterion = module_loss.create_criterion(config.criterion)
+    if config.model == "ArcfaceMultiHead":
+        criterion = module_loss.create_criterion("focal")
 
     # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -102,7 +104,10 @@ def main(data_dir, model_dir, config):
         trainable_params,
         lr=config.lr,
     )
-    lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    if config.scheduler == "StepLR":
+        lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=args.lr_decay_rate)
+    elif config.scheduler == "ReduceLROnPlateau":
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
 
     trainer = Trainer(model, criterion, optimizer,
                       config=config,
@@ -185,10 +190,28 @@ if __name__ == '__main__':
         help="criterion type (default: cross_entropy)",
     )
     parser.add_argument(
+        "--scheduler",
+        type=str,
+        default="StepLR",
+        help="lr scheduler type (default: StepLR)",
+    )
+    parser.add_argument(
         "--lr_decay_step",
         type=int,
         default=20,
         help="learning rate scheduler deacy step (default: 20)",
+    )
+    parser.add_argument(
+        "--lr_decay_rate",
+        type=float,
+        default=0.5,
+        help="learning rate scheduler deacy rate = gamma (default: 0.5)",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=15,
+        help="ReduceOnLRPlateau feature. Number of epochs with no improvement after which learning rate will be reduced (default: 15)",
     )
     parser.add_argument(
         "--log_interval",

@@ -8,6 +8,7 @@ from torchvision.transforms import (
     CenterCrop,
     ColorJitter,
     RandomHorizontalFlip,
+    Grayscale,
 )
 
 
@@ -61,6 +62,24 @@ class AddGaussianNoise(object):
         return self.__class__.__name__ + "(mean={0}, std={1})".format(
             self.mean, self.std
         )
+
+
+class ArcfaceResNetAugmentation:
+    """ArcfaceResNet Augmentation을 담당하는 클래스"""
+
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose(
+            [
+                Grayscale(),
+                Resize(resize, Image.BILINEAR),
+                ToTensor(),
+                Normalize(mean=mean, std=std),
+                RandomHorizontalFlip(0.5),
+            ]
+        )
+
+    def __call__(self, image):
+        return self.transform(image)
 
 
 class CustomAugmentation:

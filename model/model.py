@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from base.base_model import BaseModel
 import timm
-from model.arcface_resnet import resnet_face18
+import torchvision
+from model.arcface_resnet import *
 from model.arcface_metrics import *
 
 
@@ -69,28 +70,17 @@ class EfficientNetB0MultiHead(BaseModel):
         gender = self.gender(x)
         age = self.age(x)
         return mask, gender, age
+    
 
-
-class ArcfaceResNetMultiHead(BaseModel):
+class ViTL14MultiHead(BaseModel):
     def __init__(self, num_classes):
         super().__init__()
-        self.model = resnet_face18(use_se=True)
-        self.model.load_state_dict(torch.load('./model/pretrained/arcface_resnet18_110_t.pth')) # num_features : 
+        self.model = timm.create_model('timm/vit_large_patch14_clip_224.openai_ft_in12k_in1k', pretrained=True) # num_features : 1000
         for param in self.model.parameters():
-            param.requires_grad = False 
-
-        metric = 'arc_margin' # TODO: args 받아오기. hardcoded
-        if metric == 'add_margin':
-            self.metric_fc = AddMarginProduct(512, num_classes, s=30, m=0.35)
-        elif metric == 'arc_margin':
-            self.metric_fc = ArcMarginProduct(512, num_classes, s=30, m=0.5, easy_margin=False) # easy_margin hardcoded
-        elif metric == 'sphere':
-            self.metric_fc = SphereProduct(512, num_classes, m=4)
-        else:
-            self.metric_fc = nn.Linear(512, num_classes)
+            param.requires_grad = False
 
         self.mask = nn.Sequential(
-            nn.Linear(1280, 512),
+            nn.Linear(1000, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 128),
@@ -100,7 +90,7 @@ class ArcfaceResNetMultiHead(BaseModel):
         )
 
         self.age = nn.Sequential(
-            nn.Linear(1280, 512),
+            nn.Linear(1000, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 128),
@@ -110,7 +100,7 @@ class ArcfaceResNetMultiHead(BaseModel):
         )
         
         self.gender = nn.Sequential(
-            nn.Linear(1280, 512),
+            nn.Linear(1000, 512),
             nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Linear(512, 128),
@@ -121,10 +111,39 @@ class ArcfaceResNetMultiHead(BaseModel):
 
     def forward(self, x):
         x = self.model(x)
-        x = self.metric_fc(x)
         mask = self.mask(x)
         gender = self.gender(x)
         age = self.age(x)
+        return mask, gender, age
+
+
+class ArcfaceMultiHead(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        # # pretrained resnetface18 from repo
+        # self.model = ResNetFace(IRBlock, [2, 2, 2, 2], use_se=False)
+        # checkpoint = torch.load('./model/pretrained/arcface_resnet18_110.pth', map_location='cuda:0')
+        # self.model = torch.nn.DataParallel(self.model, device_ids=[0])
+        # self.model.load_state_dict(checkpoint)
+        # #
+        # self.model = timm.create_model('timm/convnext_small.in12k', pretrained=True) # num_features : 11821
+        self.model = timm.create_model('timm/vit_large_patch14_clip_224.openai_ft_in12k_in1k', pretrained=True) # num_features : 1000
+        for param in self.model.parameters():
+            param.requires_grad = False
+        #
+        self.mask = ArcMarginProduct(1000, 3, s=30, m=0.5, easy_margin=True)
+
+        self.age = ArcMarginProduct(1000, 3, s=30, m=0.5, easy_margin=True)
+        
+        self.gender = ArcMarginProduct(1000, 2, s=30, m=0.5, easy_margin=True)
+
+    def forward(self, x, mask, gender, age):
+        # x = self.model.forward_features(x)
+        # x = self.model.forward_head(x)
+        x = self.model(x)
+        mask = self.mask(x, mask)
+        gender = self.gender(x, gender)
+        age = self.age(x, age)
         return mask, gender, age
 
 
