@@ -131,7 +131,7 @@ class EfficientViTB3MultiHead(BaseModel):
 
 
 
-class SwinTransformerBase224(BaseModel):
+class SwinTransformerBase224V1(BaseModel):
     def __init__(self, num_classes):
         super().__init__()
         self.model = timm.create_model("swin_base_patch4_window7_224", pretrained=True, num_classes=0)  # num_features = 1024
