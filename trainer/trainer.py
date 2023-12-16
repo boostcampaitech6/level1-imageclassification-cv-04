@@ -297,13 +297,13 @@ class Trainer(BaseTrainer):
             #     self.best_val_acc = val_acc
             if val_loss < self.best_val_loss:
                 print(
-                    f"New best model for val loss : {val_loss:4.2%}! saving the best model.."
+                    f"New best model for val loss : {val_loss:4.2}! saving the best model.."
                 )
                 
                 torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
                 self.best_val_loss = val_loss
             
-            self.best_val_acc = min(self.best_val_acc, val_acc)
+            self.best_val_acc = max(self.best_val_acc, val_acc)
             # self.best_val_loss = min(self.best_val_loss, val_loss)
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
             print(
