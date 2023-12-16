@@ -1,7 +1,11 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from base.base_model import BaseModel
+
 import timm
+
+from base.base_model import BaseModel
+
 
 
 class MnistModel(BaseModel):
@@ -60,6 +64,200 @@ class EfficientNetB0MultiHead(BaseModel):
             nn.Linear(128, 2)
         )
 
+    def forward(self, x):
+        x = self.model(x)
+        mask = self.mask(x)
+        gender = self.gender(x)
+        age = self.age(x)
+        return mask, gender, age
+
+
+class FocalNetTinySRFMultiHead(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model("focalnet_tiny_srf", pretrained=True, num_classes=0)  # num_features = 768
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        self.model.head.fc = nn.Linear(768, 1000)  # 모델의 classifier(출력단)
+        self.gelu = nn.GELU()
+        self.mask = nn.Linear(1000, 3)
+        self.age = nn.Linear(1000, 3)
+        self.gender = nn.Linear(1000, 2)
+    
+    def forward(self, x):
+        x = self.model(x)
+        mask = self.mask(self.gelu(x))
+        gender = self.gender(self.gelu(x))
+        age = self.age(self.gelu(x))
+        return mask, gender, age
+
+
+class EfficientViTB3MultiHead(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model("efficientvit_b3", pretrained=True, num_classes=0)  # num_features = 512
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        self.model.head = nn.Sequential(
+            nn.Dropout(p=0.0),
+            nn.Conv2d(512, 2304, kernel_size=(1, 1), stride=(1, 1), bias=False),
+            nn.BatchNorm2d(2304),
+            nn.Hardswish(),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
+            
+            nn.Linear(2304, 2560, bias=False),
+            nn.LayerNorm((2560,)),
+            nn.Hardswish(),
+            nn.Dropout(p=0.0),
+            nn.Linear(2560, 1000, bias=False),
+            nn.LayerNorm((1000,))
+        )
+        self.hardswish = nn.Hardswish()
+        self.mask = nn.Linear(1000, 3)
+        self.age = nn.Linear(1000, 3)
+        self.gender = nn.Linear(1000, 2)
+    
+    def forward(self, x):
+        x = self.model(x)
+        mask = self.mask(self.hardswish(x))
+        gender = self.gender(self.hardswish(x))
+        age = self.age(self.hardswish(x))
+        return mask, gender, age
+
+
+
+class SwinTransformerBase224(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model("swin_base_patch4_window7_224", pretrained=True, num_classes=0)  # num_features = 1024
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        self.mask = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+        self.gender = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 2)
+        )
+        self.age = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+        
+    
+    def forward(self, x):
+        x = self.model(x)
+        mask = self.mask(x)
+        gender = self.gender(x)
+        age = self.age(x)
+        return mask, gender, age
+
+
+class SwinTransformerBase224V2(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model("swin_base_patch4_window7_224", pretrained=True, num_classes=0)  # num_features = 1024
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        self.mask = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 64, bias=False),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Linear(64, 32, bias=False),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Linear(32, 16, bias=False),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.Linear(16, 8, bias=False),
+            nn.BatchNorm1d(8),
+            nn.ReLU(),
+            nn.Linear(8, 3)
+        )
+        self.gender = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 64, bias=False),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Linear(64, 32, bias=False),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Linear(32, 16, bias=False),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.Linear(16, 8, bias=False),
+            nn.BatchNorm1d(8),
+            nn.ReLU(),
+            nn.Linear(8, 3)
+        )
+        self.age = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Linear(256, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 64, bias=False),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Linear(64, 32, bias=False),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Linear(32, 16, bias=False),
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.Linear(16, 8, bias=False),
+            nn.BatchNorm1d(8),
+            nn.ReLU(),
+            nn.Linear(8, 3)
+        )
+        
+    
     def forward(self, x):
         x = self.model(x)
         mask = self.mask(x)

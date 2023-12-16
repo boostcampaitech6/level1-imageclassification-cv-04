@@ -92,12 +92,12 @@ def main(config):
                 
     submission['ans'] = all_predictions
 
-    submission["mask"] = pred_masks
-    submission["gender"] = pred_genders
-    submission["age"] = pred_ages
+    # submission["mask"] = pred_masks
+    # submission["gender"] = pred_genders
+    # submission["age"] = pred_ages
     
-    for i in range(len(submission)):
-        submission["mask"][i],submission["gender"][i],submission["age"][i] = decode_pred(submission["mask"][i],submission["gender"][i],submission["age"][i])
+    # for i in range(len(submission)):
+    #     submission["mask"][i],submission["gender"][i],submission["age"][i] = decode_pred(submission["mask"][i],submission["gender"][i],submission["age"][i])
 
     # 제출할 파일을 저장합니다.
     submission.to_csv(os.path.join(config.test_dir, 'submission.csv'), index=False)

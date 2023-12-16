@@ -96,10 +96,10 @@ def main(data_dir, model_dir, config):
     criterion = module_loss.create_criterion(config.criterion)
 
     # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
-    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    # trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
     optimizer = optimizer_module(
-        trainable_params,
+        model.parameters(),
         lr=config.lr,
     )
     lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)

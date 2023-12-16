@@ -74,9 +74,9 @@ class F1Loss(nn.Module):
 
 # 사용 가능한 손실 함수의 진입점
 _criterion_entrypoints = {
-    "cross_entropy": nn.CrossEntropyLoss,
+    "ce": nn.CrossEntropyLoss,
     "focal": FocalLoss,
-    "label_smoothing": LabelSmoothingLoss,
+    "smoothing": LabelSmoothingLoss,
     "f1": F1Loss,
 }
 
