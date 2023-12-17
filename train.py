@@ -197,6 +197,12 @@ if __name__ == '__main__':
         help="how many batches to wait before logging training status",
     )
     parser.add_argument(
+        "--best_model",
+        type=str,
+        default="acc",
+        help="Usage: 'acc' or 'loss', best model 선정 기준을 accuracy로 할지, loss로 할지 여부"
+    )
+    parser.add_argument(
         "--name", default="exp", help="model save at {SM_MODEL_DIR}/{name}"
     )
     parser.add_argument(

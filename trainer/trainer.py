@@ -288,23 +288,23 @@ class Trainer(BaseTrainer):
             val_loss = np.sum(val_loss_items) / len(self.valid_dataloader)
             val_acc = np.sum(val_acc_items) / (len(self.valid_dataloader) * self.config.valid_batch_size)
             
-            # if val_acc > self.best_val_acc:
-            #     print(
-            #         f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
-            #     )
-                
-            #     torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
-            #     self.best_val_acc = val_acc
-            if val_loss < self.best_val_loss:
-                print(
-                    f"New best model for val loss : {val_loss:4.2}! saving the best model.."
-                )
-                
-                torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
-                self.best_val_loss = val_loss
+            if self.config.best_model == "acc":
+                if val_acc > self.best_val_acc:
+                    print(
+                        f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
+                    )
+                    torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
+                    self.best_val_acc = val_acc
+                self.best_val_loss = min(self.best_val_loss, val_loss)
+            elif self.config.best_model == "loss":
+                if val_loss < self.best_val_loss:
+                    print(
+                        f"New best model for val loss : {val_loss:4.2}! saving the best model.."
+                    )
+                    torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
+                    self.best_val_loss = val_loss
+                self.best_val_acc = max(self.best_val_acc, val_acc)
             
-            self.best_val_acc = max(self.best_val_acc, val_acc)
-            # self.best_val_loss = min(self.best_val_loss, val_loss)
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
             print(
                 f"[Val] acc : {val_acc:4.2%}, mask acc : {np.mean(val_acc_mask_items):4.2%} || "
