@@ -27,6 +27,45 @@ class MnistModel(BaseModel):
         return F.log_softmax(x, dim=1)
 
 
+class ResNet15(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model("resnet18", pretrained=True, num_classes=0)  # num_features = 512
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        self.mask = nn.Sequential(
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(),
+            nn.Linear(256, 3)
+        )
+        self.gender = nn.Sequential(
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(),
+            nn.Linear(256, 2)
+        )
+        self.age = nn.Sequential(
+            nn.Linear(512, 256, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(),
+            nn.Linear(256, 3)
+        )
+        
+        
+    def forward(self, x):
+        x = self.model(x)
+        mask = self.mask(x)
+        gender = self.gender(x)
+        age = self.age(x)
+        return mask, gender, age
+
+
 class EfficientNetB0MultiHead(BaseModel):
     def __init__(self, num_classes):
         super().__init__()
