@@ -127,11 +127,17 @@ class Trainer(BaseTrainer):
                 train_loss = loss_value / self.config.log_interval
                 train_acc = matches / self.config.batch_size / self.config.log_interval
                 current_lr = self.get_lr(self.optimizer)
-                print(
-                    f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
-                    f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || "
-                    f"mask accuracy {np.mean(acc_mask_items):4.2%} || gender accuracy {np.mean(acc_gender_items):4.2%} || age accuracy {np.mean(acc_age_items):4.2%} ||  lr {current_lr}"
-                )
+                if self.config.multi_head:
+                    print(
+                        f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
+                        f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || "
+                        f"mask accuracy {np.mean(acc_mask_items):4.2%} || gender accuracy {np.mean(acc_gender_items):4.2%} || age accuracy {np.mean(acc_age_items):4.2%} ||  lr {current_lr}"
+                    )
+                else:
+                    print(
+                        f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
+                        f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
+                    )
 
                 # tensorboard: 학습 단계에서 Loss, Accuracy 로그 저장
                 self.logger.add_scalar(
@@ -145,14 +151,19 @@ class Trainer(BaseTrainer):
                 matches = 0   
 
                 # wandb: 학습 단계에서 Loss, Accuracy 로그 저장
-                # wandb.log({
-                #     "Train loss": train_loss,
-                #     "Train acc" : train_acc
-                #     "Train acc mask": np.mean(acc_mask_items),
-                #     "Train acc gender": np.mean(acc_gender_items),
-                #     "Train acc age": np.mean(acc_age_items)
-
-                # })
+                if self.config.multi_head:
+                    wandb.log({
+                        "Train loss": train_loss,
+                        "Train acc" : train_acc,
+                        "Train acc mask": np.mean(acc_mask_items),
+                        "Train acc gender": np.mean(acc_gender_items),
+                        "Train acc age": np.mean(acc_age_items),
+                    })
+                else:
+                    wandb.log({
+                        "Train loss": train_loss,
+                        "Train acc" : train_acc,
+                    })
 
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
@@ -181,6 +192,15 @@ class Trainer(BaseTrainer):
 
             figure = None
 
+            if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                # wandb table for validation
+                if self.config.multi_head:
+                    columns = ["image", "mask_gt", "mask_predict", "gender_gt", "gender_predict", "age_gt", "age_predict"]
+                    val_table = wandb.Table(columns=columns)
+                else:
+                    columns = ["image", "gt", "predict"]
+                    val_table = wandb.Table(columns=columns)
+
             for val_batch in self.valid_dataloader:
                 if self.config.multi_head:
                     inputs, labels, mask, gender, age = val_batch
@@ -207,6 +227,20 @@ class Trainer(BaseTrainer):
                     val_acc_gender_items.append(acc_gender)
                     val_acc_age_items.append(acc_age)
 
+                    # val_table logging
+                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                        inputs_np = (
+                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
+                        )
+                        inputs_np = self.denormalize_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
+                        for input, m_gt, m_pt, g_gt, g_pt, a_gt, a_pt in zip(inputs_np, mask, torch.argmax(pred_mask, dim=-1), gender, torch.argmax(pred_gender, dim=-1), age, torch.argmax(pred_age, dim=-1)):
+                            if self.config.save_val_table == 2:
+                                if m_gt != m_pt or g_gt != g_pt or a_gt != a_pt:
+                                    val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
+                            else:
+                                val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
 
                 else:
                     inputs, labels = val_batch
@@ -217,6 +251,21 @@ class Trainer(BaseTrainer):
                     preds = torch.argmax(outs, dim=-1)
 
                     loss_item = self.criterion(outs, labels).item()
+                
+                    # val_table logging
+                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                        inputs_np = (
+                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
+                        )
+                        inputs_np = self.denormalize_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
+                        for input, gt, pred in zip(inputs_np, labels, preds):
+                            if self.config.save_val_table == 2:
+                                if gt != pred:
+                                    val_table.add_data(wandb.Image(input), gt, pred)
+                            else:
+                                val_table.add_data(wandb.Image(input), gt, pred)
 
                 acc_item = (labels == preds).sum().item()
                 val_loss_items.append(loss_item)
@@ -250,9 +299,9 @@ class Trainer(BaseTrainer):
                 self.best_val_acc = val_acc
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
             print(
-                f"[Val] acc : {val_acc:4.2%}, mask acc : {np.mean(val_acc_mask_items):4.2%}"
-                f"gender acc : {np.mean(val_acc_gender_items):4.2%}, age acc : {np.mean(val_acc_age_items):4.2%}, loss: {val_loss:4.2} || "
-                f"best acc : {self.best_val_acc:4.2%}, best loss: {self.best_val_loss:4.2}"
+                f"[Val] acc : {val_acc:4.2%}, mask acc : {np.mean(val_acc_mask_items):4.2%} || "
+                f"gender acc : {np.mean(val_acc_gender_items):4.2%} || age acc : {np.mean(val_acc_age_items):4.2%} || loss: {val_loss:4.2} || "
+                f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
             )
 
             # tensorboard: 검증 단계에서 Loss, Accuracy 로그 저장
@@ -262,17 +311,24 @@ class Trainer(BaseTrainer):
             print()
 
             # wandb: 검증 단계에서 Loss, Accuracy 로그 저장
-            # wandb.log({
-            #     "Valid loss": val_loss,
-            #     "Valid acc" : val_acc,
-            #     "Valid acc_mask" : np.mean(val_acc_mask_items),
-            #     "Valid acc_gender" : np.mean(val_acc_gender_items),
-            #     "Valid acc_age" : np.mean(val_acc_age_items),
-
-
-            #     "results": wandb.Image(figure),
-            # })
-    
+            if self.config.multi_head:
+                wandb.log({
+                    "Valid loss": val_loss,
+                    "Valid acc" : val_acc,
+                    "Valid acc_mask" : np.mean(val_acc_mask_items),
+                    "Valid acc_gender" : np.mean(val_acc_gender_items),
+                    "Valid acc_age" : np.mean(val_acc_age_items),
+                    "results": wandb.Image(figure),
+                })
+            else:
+                wandb.log({
+                    "Valid loss": val_loss,
+                    "Valid acc" : val_acc,
+                    "results": wandb.Image(figure),
+                })
+            if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                wandb.log({f"{self.config.wandb}": val_table})
+        
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'

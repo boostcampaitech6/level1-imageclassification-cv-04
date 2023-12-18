@@ -1,6 +1,7 @@
 # ${변수} 정의
 NAME="exp"
 WANDB="model_EfficientNetB0MultiHead"
+VAL_TAB=2
 EPOCH=30
 BATCH=512
 DATASET="MaskSplitByProfileDataset"
@@ -31,5 +32,6 @@ python train.py \
 --lr_decay_step ${DECAY_STEP} \
 --name ${NAME} \
 --wandb ${WANDB} \
+--save_val_table ${VAL_TAB} \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}"

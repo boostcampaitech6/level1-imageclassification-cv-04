@@ -204,6 +204,12 @@ if __name__ == '__main__':
         help="wandb run name. 실험 대상이 되는 \"arg종류_arg값\" 형태로 적어주세요 (예: model_EfficientNetB4)."
     )
     parser.add_argument(
+        "--save_val_table", 
+        type=int,
+        default=0,
+        help="wandb에서 validation 추론 결과를 val_table로 저장할지. 0인 경우 x, 1인 경우 validation set 전체 저장, 2인 경우 틀린 case만 저장"
+    )
+    parser.add_argument(
         "--multi_head", 
         type=int,
         default=1,
