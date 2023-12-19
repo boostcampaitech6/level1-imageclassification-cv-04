@@ -9,17 +9,19 @@ import random
 import copy
 
 
-def get_spm(input, target, model):
+# def get_spm(input, target, model):
+def get_spm(batch, model):
     """
     SnapMix feature. CAM for model classifier head
     """
+    input, target, mask, gender, age = batch
+
     # imgsize = (conf.cropsize,conf.cropsize)
     imgsize = input.shape[2:]
     bs = input.size(0)
     with torch.no_grad():
-        output, fms, _ = model(input)
-
-        # get outmaps for mask classifier
+        # output, fms, _ = model(input) # fms만 사용
+        fms = model.module.model(input)
         clsw = model.module.mask
         weight = clsw.weight.data
         bias = clsw.bias.data
@@ -49,9 +51,14 @@ def get_spm(input, target, model):
         for i in range(bs):
             outmaps[i] -= outmaps[i].min()
             outmaps[i] /= outmaps[i].sum()
+        ##
 
 
     return outmaps, clslogit
+
+
+def get_outmaps(clsw, fms, target):
+    return (outmaps, clslogit)
 
 
 def snapmix(input,target,conf,model=None):
