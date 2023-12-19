@@ -72,6 +72,51 @@ class EfficientNetB0MultiHead(BaseModel):
         return mask, gender, age
     
 
+class EfficientNetB4MultiHead(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=0)  # num_features : 1280
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        self.mask = nn.Sequential(
+            nn.Linear(1280, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+
+        self.age = nn.Sequential(
+            nn.Linear(1280, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+        
+        self.gender = nn.Sequential(
+            nn.Linear(1280, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 2)
+        )
+
+    def forward(self, x):
+        x = self.model(x)
+        mask = self.mask(x)
+        gender = self.gender(x)
+        age = self.age(x)
+        return mask, gender, age
+    
+
 class ViTL14MultiHead(BaseModel):
     def __init__(self, num_classes):
         super().__init__()
