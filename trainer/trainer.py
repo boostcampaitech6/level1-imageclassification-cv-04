@@ -39,15 +39,8 @@ class Trainer(BaseTrainer):
         with open(os.path.join(self.save_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(vars(config), f, ensure_ascii=False, indent=4)
 
-        # logging with wandb
-        # wandb.init(entity="level1-cv-04")
-        wandb.init(project="level1-imageclassification-cv-04")
-        # 실행 이름 설정
-        wandb.run.name = self.config.wandb
-        wandb.run.save()
-        wandb.config.update(self.config)
-
         self.cutmix_criterion = CutMixCriterion(self.criterion)
+        self.scaler = torch.cuda.amp.GradScaler()
 
     def increment_path(self, path, exist_ok=False):
         """Automatically increment path, i.e. runs/exp --> runs/exp0, runs/exp1 etc.
@@ -106,27 +99,30 @@ class Trainer(BaseTrainer):
                     age = age.to(self.device)
                     age2 = age2.to(self.device)
 
-                    if self.config.model == "ArcfaceMultiHead":
-                        outs = self.model(inputs, mask, gender, age)
-                    else:
-                        outs = self.model(inputs)
-                    
-                    pred_mask, pred_gender, pred_age = outs
-                    loss_mask = self.cutmix_criterion(pred_mask, (mask, mask2, lam))
-                    loss_gender = self.cutmix_criterion(pred_gender, (gender, gender2, lam))
-                    loss_age = self.cutmix_criterion(pred_age, (age, age2, lam))
+                    with torch.cuda.amp.autocast():
+                        if self.config.model == "ArcfaceMultiHead":
+                            outs = self.model(inputs, mask, gender, age)
+                        else:
+                            outs = self.model(inputs)
+                        
+                        pred_mask, pred_gender, pred_age = outs
+                        loss_mask = self.cutmix_criterion(pred_mask, (mask, mask2, lam))
+                        loss_gender = self.cutmix_criterion(pred_gender, (gender, gender2, lam))
+                        loss_age = self.cutmix_criterion(pred_age, (age, age2, lam))
                 else:
                     mask = mask.to(self.device)
                     gender = gender.to(self.device)
                     age = age.to(self.device)
-                    if self.config.model == "ArcfaceMultiHead":
-                        outs = self.model(inputs, mask, gender, age)
-                    else:
-                        outs = self.model(inputs)
-                    pred_mask, pred_gender, pred_age = outs
-                    loss_mask = self.criterion(pred_mask, mask)
-                    loss_gender = self.criterion(pred_gender, gender)
-                    loss_age = self.criterion(pred_age, age)
+
+                    with torch.cuda.amp.autocast():
+                        if self.config.model == "ArcfaceMultiHead":
+                            outs = self.model(inputs, mask, gender, age)
+                        else:
+                            outs = self.model(inputs)
+                        pred_mask, pred_gender, pred_age = outs
+                        loss_mask = self.criterion(pred_mask, mask)
+                        loss_gender = self.criterion(pred_gender, gender)
+                        loss_age = self.criterion(pred_age, age)
                 loss = loss_mask + loss_gender + loss_age
                 preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
@@ -145,13 +141,17 @@ class Trainer(BaseTrainer):
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
 
-                outs = self.model(inputs)
-                loss = self.criterion(outs, labels)
+                with torch.cuda.amp.autocast():
+                    outs = self.model(inputs)
+                    loss = self.criterion(outs, labels)
 
-                preds = torch.argmax(outs, dim=-1)
+                    preds = torch.argmax(outs, dim=-1)
 
-            loss.backward()
-            self.optimizer.step()
+            # loss.backward()
+            # self.optimizer.step()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             
             loss_value += loss.item()
             matches += (preds == labels).sum().item()
@@ -208,7 +208,7 @@ class Trainer(BaseTrainer):
                 sampled_inputs_np = self.denormalize_image(
                     sampled_inputs_np, self.dataset_mean, self.dataset_std
                 )
-                for input in sampled_inputs_np:
+                for input in sampled_inputs_np[:20]:
                     cutmix_traindata.add_data(wandb.Image(input))
 
                 wandb.log({f"{self.config.wandb}_cutmix_traindata": cutmix_traindata})
@@ -259,14 +259,17 @@ class Trainer(BaseTrainer):
                     mask = mask.to(self.device)
                     gender = gender.to(self.device)
                     age = age.to(self.device)
-                    if self.config.model == "ArcfaceMultiHead":
-                        outs = self.model(inputs, mask, gender, age)
-                    else:
-                        outs = self.model(inputs)
-                    pred_mask, pred_gender, pred_age = outs
-                    loss_mask = self.criterion(pred_mask, mask)
-                    loss_gender = self.criterion(pred_gender, gender)
-                    loss_age = self.criterion(pred_age, age)
+
+                    with torch.cuda.amp.autocast():
+                        if self.config.model == "ArcfaceMultiHead":
+                            outs = self.model(inputs, mask, gender, age)
+                        else:
+                            outs = self.model(inputs)
+                        pred_mask, pred_gender, pred_age = outs
+                        loss_mask = self.criterion(pred_mask, mask)
+                        loss_gender = self.criterion(pred_gender, gender)
+                        loss_age = self.criterion(pred_age, age)
+                    
                     loss_item = (loss_mask + loss_gender + loss_age).item()
                     preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
                     
@@ -322,10 +325,11 @@ class Trainer(BaseTrainer):
                     inputs = inputs.to(self.device)
                     labels = labels.to(self.device)
 
-                    outs = self.model(inputs)
-                    preds = torch.argmax(outs, dim=-1)
+                    with torch.cuda.amp.autocast():
+                        outs = self.model(inputs)
+                        preds = torch.argmax(outs, dim=-1)
 
-                    loss_item = self.criterion(outs, labels).item()
+                        loss_item = self.criterion(outs, labels).item()
 
                     # val_table logging
                     if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록

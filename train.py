@@ -15,7 +15,8 @@ import model.model as module_arch
 from trainer import Trainer
 from utils import prepare_device
 from torch.optim.lr_scheduler import StepLR
-
+import wandb
+from sklearn.model_selection import StratifiedKFold
 
 
 def seed_everything(seed):
@@ -26,6 +27,69 @@ def seed_everything(seed):
     torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
     random.seed(seed)
+
+
+def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
+    # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
+    train_set = torch.utils.data.Subset(dataset,
+                                        indices=train_idx)
+    # 인자로 전달받은 dataset에서 valid_idx에 해당하는 Subset 추출
+    val_set   = torch.utils.data.Subset(dataset,
+                                        indices=valid_idx)
+    
+    # 추출된 Train Subset으로 DataLoader 생성
+    train_loader = torch.utils.data.DataLoader(
+        train_set,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        drop_last=True,
+        shuffle=True,
+        pin_memory=torch.cuda.is_available(),
+    )
+    # 추출된 Valid Subset으로 DataLoader 생성
+    val_loader = torch.utils.data.DataLoader(
+        val_set,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        drop_last=True,
+        shuffle=False,
+        pin_memory=torch.cuda.is_available(),
+    )
+    
+    # 생성한 DataLoader 반환
+    return train_loader, val_loader
+
+
+def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers, cutmix):
+    # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
+    train_set = torch.utils.data.Subset(dataset,
+                                        indices=train_idx)
+    # 인자로 전달받은 dataset에서 valid_idx에 해당하는 Subset 추출
+    val_set   = torch.utils.data.Subset(dataset,
+                                        indices=valid_idx)
+    
+    # 추출된 Train Subset으로 DataLoader 생성
+    train_loader = torch.utils.data.DataLoader(
+        train_set,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        drop_last=True,
+        shuffle=True,
+        pin_memory=torch.cuda.is_available(),
+        collate_fn=CutMixCollator(1.0, cutmix)
+    )
+    # 추출된 Valid Subset으로 DataLoader 생성
+    val_loader = torch.utils.data.DataLoader(
+        val_set,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        drop_last=True,
+        shuffle=False,
+        pin_memory=torch.cuda.is_available(),
+    )
+    
+    # 생성한 DataLoader 반환
+    return train_loader, val_loader
 
 
 def main(data_dir, model_dir, config):
@@ -55,91 +119,150 @@ def main(data_dir, model_dir, config):
     )
     dataset.set_transform(transform)
 
-    # setup data_loader instances
-    train_set, valid_set = dataset.split_dataset()
-    # train_loader_module = getattr(module_data_loader, config.dataloader)
-    # train_data_loader = train_loader_module(dataset=train_set,
-    #                                         batch_size=config.batch_size,
-    #                                         num_workers=0,
-    #                                         shuffle=True,
-    #                                         pin_memory=use_cuda,
-    #                                         drop_last=True)
-    # valid_loader_module = getattr(module_data_loader, config.dataloader)
-    # valid_data_loader = valid_loader_module(dataset=valid_set,
-    #                                         batch_size=config.valid_batch_size,
-    #                                         num_workers=0,
-    #                                         shuffle=False,
-    #                                         pin_memory=use_cuda,
-    #      
-    #                                    drop_last=True)
-    if config.augmentation == "CutmixAugmentation":
-        train_dataloader = DataLoader(
-            dataset=train_set,
-            batch_size=args.batch_size,
-            num_workers=0,
-            shuffle=True,
-            pin_memory=use_cuda,
-            drop_last=True,
-            collate_fn=CutMixCollator(1.0, config.cutmix)
+    labels = [
+        dataset.encode_multi_class(mask, gender, age)
+        for mask, gender, age in zip(
+            dataset.mask_labels, dataset.gender_labels, dataset.age_labels
         )
-        valid_dataloader = DataLoader(
-            dataset=valid_set,
-            batch_size=args.valid_batch_size,
-            num_workers=0,
-            shuffle=False,
-            pin_memory=use_cuda,
-            drop_last=True,
-        )   # validation data는 mix 수행 안 함
-    else:
-        train_dataloader = DataLoader(
-            dataset=train_set,
-            batch_size=args.batch_size,
-            num_workers=0,
-            shuffle=True,
-            pin_memory=use_cuda,
-            drop_last=True,
+    ]
+
+    if config.kfold == 0:
+        # wandb initialize
+        wandb.init(project="level1-imageclassification-cv-04")
+        wandb.run.save()
+        wandb.config.update(config)
+
+        # wandb 실행 이름 설정
+        wandb.run.name = config.wandb
+
+        # setup data_loader instances
+        train_set, valid_set = dataset.split_dataset()
+
+        if config.augmentation == "CutmixAugmentation":
+            train_dataloader = DataLoader(
+                dataset=train_set,
+                batch_size=args.batch_size,
+                num_workers=0,
+                shuffle=True,
+                pin_memory=use_cuda,
+                drop_last=True,
+                collate_fn=CutMixCollator(1.0, config.cutmix)
+            )
+            valid_dataloader = DataLoader(
+                dataset=valid_set,
+                batch_size=args.valid_batch_size,
+                num_workers=0,
+                shuffle=False,
+                pin_memory=use_cuda,
+                drop_last=True,
+            )   # validation data는 mix 수행 안 함
+        else:
+            train_dataloader = DataLoader(
+                dataset=train_set,
+                batch_size=args.batch_size,
+                num_workers=0,
+                shuffle=True,
+                pin_memory=use_cuda,
+                drop_last=True,
+            )
+            valid_dataloader = DataLoader(
+                dataset=valid_set,
+                batch_size=args.valid_batch_size,
+                num_workers=0,
+                shuffle=False,
+                pin_memory=use_cuda,
+                drop_last=True,
+            )
+
+        # build model architecture, then print to console
+        model_module = getattr(module_arch, config.model)
+        model = model_module(num_classes=num_classes).to(device)
+        model = torch.nn.DataParallel(model)
+
+        # get function handles of loss and metrics
+        criterion = module_loss.create_criterion(config.criterion)
+        if config.model == "ArcfaceMultiHead":
+            criterion = module_loss.create_criterion("focal")
+
+        # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
+        trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+        optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
+        optimizer = optimizer_module(
+            trainable_params,
+            lr=config.lr,
         )
-        valid_dataloader = DataLoader(
-            dataset=valid_set,
-            batch_size=args.valid_batch_size,
-            num_workers=0,
-            shuffle=False,
-            pin_memory=use_cuda,
-            drop_last=True,
-        )
+        if config.scheduler == "StepLR":
+            lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=args.lr_decay_rate)
+        elif config.scheduler == "ReduceLROnPlateau":
+            lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
 
-    # build model architecture, then print to console
-    model_module = getattr(module_arch, config.model)
-    model = model_module(num_classes=num_classes).to(device)
-    model = torch.nn.DataParallel(model)
+        trainer = Trainer(model, criterion, optimizer,
+                        config=config,
+                        device=device,
+                        train_dataloader=train_dataloader,
+                        valid_dataloader=valid_dataloader,
+                        dataset_mean = dataset_mean,
+                        dataset_std = dataset_std,
+                        lr_scheduler=lr_scheduler)
 
-    # get function handles of loss and metrics
-    criterion = module_loss.create_criterion(config.criterion)
-    if config.model == "ArcfaceMultiHead":
-        criterion = module_loss.create_criterion("focal")
+        trainer.train()
 
-    # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
-    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
-    optimizer = optimizer_module(
-        trainable_params,
-        lr=config.lr,
-    )
-    if config.scheduler == "StepLR":
-        lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=args.lr_decay_rate)
-    elif config.scheduler == "ReduceLROnPlateau":
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+    elif config.kfold == 1:
+        # 5-fold Stratified KFold 5개의 fold를 형성하고 5번 Cross Validation을 진행합니다.
+        n_splits = 5
+        skf = StratifiedKFold(n_splits=n_splits)
 
-    trainer = Trainer(model, criterion, optimizer,
-                      config=config,
-                      device=device,
-                      train_dataloader=train_dataloader,
-                      valid_dataloader=valid_dataloader,
-                      dataset_mean = dataset_mean,
-                      dataset_std = dataset_std,
-                      lr_scheduler=lr_scheduler)
+        for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
+            print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
+            wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
+            wandb.run.name = f'{config.wandb}_fold{i}'
 
-    trainer.train()
+            # -- data_loader
+            train_set, val_set = dataset.split_dataset()
+            batch_size = config.batch_size
+            num_workers = 0
+
+            if config.augmentation == "CutmixAugmentation":
+                train_dataloader, valid_dataloader = getDataloader_cutmix(
+                    dataset, train_idx, valid_idx, batch_size, num_workers, config.cutmix
+                )
+            else:
+                train_dataloader, valid_dataloader = getDataloader(
+                    dataset, train_idx, valid_idx, batch_size, num_workers
+                )
+
+            # build model architecture, then print to console
+            model_module = getattr(module_arch, config.model)
+            model = model_module(num_classes=num_classes).to(device)
+            model = torch.nn.DataParallel(model)
+
+            # get function handles of loss and metrics
+            criterion = module_loss.create_criterion(config.criterion)
+            if config.model == "ArcfaceMultiHead":
+                criterion = module_loss.create_criterion("focal")
+
+            # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
+            trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+            optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
+            optimizer = optimizer_module(
+                trainable_params,
+                lr=config.lr,
+            )
+            if config.scheduler == "StepLR":
+                lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
+            elif config.scheduler == "ReduceLROnPlateau":
+                lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+
+            trainer = Trainer(model, criterion, optimizer,
+                            config=config,
+                            device=device,
+                            train_dataloader=train_dataloader,
+                            valid_dataloader=valid_dataloader,
+                            dataset_mean = dataset_mean,
+                            dataset_std = dataset_std,
+                            lr_scheduler=lr_scheduler)
+
+            trainer.train()
 
 
 if __name__ == '__main__':
@@ -148,6 +271,9 @@ if __name__ == '__main__':
     # Data and model checkpoints directories
     parser.add_argument(
         "--seed", type=int, default=42, help="random seed (default: 42)"
+    )
+    parser.add_argument(
+        "--kfold", type=int, default=0, help="use stratified KFold validation or not (default: 0 (not))"
     )
     parser.add_argument(
         "--epochs", type=int, default=30, help="number of epochs to train (default: 64)"
