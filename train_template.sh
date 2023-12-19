@@ -9,7 +9,7 @@ DATA_USE=1
 MODEL="EfficientNetB0MultiHead"
 # TODO: 2. model training
 MODEL_ARCH=0
-AUG="CutmixAugmentation"
+AUG="BaseAugmentation"
 CUTMIX=1
 LOSS="f1"
 OPT="Adam"
