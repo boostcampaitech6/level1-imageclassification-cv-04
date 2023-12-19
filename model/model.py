@@ -241,9 +241,12 @@ class CLIP3Head3Proj(nn.Module):
             'a photo of an woman.',
         ]
         age_captions = [
-            'a photo of a young person.',
+            'a photo of a young person',
             'a photo of a middle-aged person.',
-            'A photo of a person in old age.',
+            'A photo of an elderly person over 60 years old.',
+            # 'a photo of a young person under 30.',
+            # 'a photo of a middle-aged person aged between 30 and 60.',
+            # 'a photo of an elderly person over 60 years old.',
         ]
         
         mask_captions = clip.tokenize([text for text in mask_captions]).to(self.device)
