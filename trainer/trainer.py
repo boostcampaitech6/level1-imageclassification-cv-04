@@ -12,6 +12,7 @@ from base.base_trainer import BaseTrainer
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 from model.arcface_metrics import *
+from data_loader.cutmix import CutMixCriterion
 
 
 class Trainer(BaseTrainer):
@@ -45,6 +46,8 @@ class Trainer(BaseTrainer):
         wandb.run.name = self.config.wandb
         wandb.run.save()
         wandb.config.update(self.config)
+
+        self.cutmix_criterion = CutMixCriterion(self.criterion)
 
     def increment_path(self, path, exist_ok=False):
         """Automatically increment path, i.e. runs/exp --> runs/exp0, runs/exp1 etc.
@@ -87,19 +90,43 @@ class Trainer(BaseTrainer):
                 inputs, labels, mask, gender, age = train_batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
-                mask = mask.to(self.device)
-                gender = gender.to(self.device)
-                age = age.to(self.device)
+                if self.config.augmentation == "CutmixAugmentation":
+                    masks = mask.copy()
+                    mask, mask2, lam = masks
+                    mask = mask.to(self.device)
+                    mask2 = mask2.to(self.device)
+                    
+                    genders = gender.copy()
+                    gender, gender2, lam = genders
+                    gender = gender.to(self.device)
+                    gender2 = gender2.to(self.device)
 
-                if self.config.model == "ArcfaceMultiHead":
-                    outs = self.model(inputs, mask, gender, age)
+                    ages = age.copy()
+                    age, age2, lam = ages
+                    age = age.to(self.device)
+                    age2 = age2.to(self.device)
+
+                    if self.config.model == "ArcfaceMultiHead":
+                        outs = self.model(inputs, mask, gender, age)
+                    else:
+                        outs = self.model(inputs)
+                    
+                    pred_mask, pred_gender, pred_age = outs
+                    loss_mask = self.cutmix_criterion(pred_mask, (mask, mask2, lam))
+                    loss_gender = self.cutmix_criterion(pred_gender, (gender, gender2, lam))
+                    loss_age = self.cutmix_criterion(pred_age, (age, age2, lam))
                 else:
-                    outs = self.model(inputs)
-                pred_mask, pred_gender, pred_age = outs
-
-                loss_mask = self.criterion(pred_mask, mask)
-                loss_gender = self.criterion(pred_gender, gender)
-                loss_age = self.criterion(pred_age, age)
+                    mask = mask.to(self.device)
+                    gender = gender.to(self.device)
+                    age = age.to(self.device)
+                    if self.config.model == "ArcfaceMultiHead":
+                        outs = self.model(inputs, mask, gender, age)
+                    else:
+                        outs = self.model(inputs)
+                    pred_mask, pred_gender, pred_age = outs
+                    loss_mask = self.criterion(pred_mask, mask)
+                    loss_gender = self.criterion(pred_gender, gender)
+                    loss_age = self.criterion(pred_age, age)
                 loss = loss_mask + loss_gender + loss_age
                 preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
@@ -112,6 +139,8 @@ class Trainer(BaseTrainer):
                 acc_age_items.append(acc_age)
 
             else:
+                if self.config.augmentation == "CutmixAugmentation":
+                    print("Not Implemented.")
                 inputs, labels = train_batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
@@ -151,6 +180,22 @@ class Trainer(BaseTrainer):
                     "Train loss": train_loss,
                     "Train acc" : train_acc
                 })
+
+            if self.config.augmentation == "CutmixAugmentation" and epoch == 1: # 첫번째 epoch에서만 저장하도록
+                columns_cutmix = ["image"]
+                cutmix_traindata = wandb.Table(columns=columns_cutmix)
+
+                sampled_inputs = inputs
+                sampled_inputs_np = (
+                    torch.clone(sampled_inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
+                )
+                sampled_inputs_np = self.denormalize_image(
+                    sampled_inputs_np, self.dataset_mean, self.dataset_std
+                )
+                for input in sampled_inputs_np:
+                    cutmix_traindata.add_data(wandb.Image(input))
+
+                wandb.log({f"{self.config.wandb}_cutmix_traindata": cutmix_traindata})
 
         if self.lr_scheduler is not None:
             if self.config.scheduler != "ReduceLROnPlateau":
@@ -197,13 +242,11 @@ class Trainer(BaseTrainer):
                     mask = mask.to(self.device)
                     gender = gender.to(self.device)
                     age = age.to(self.device)
-
                     if self.config.model == "ArcfaceMultiHead":
                         outs = self.model(inputs, mask, gender, age)
                     else:
                         outs = self.model(inputs)
                     pred_mask, pred_gender, pred_age = outs
-
                     loss_mask = self.criterion(pred_mask, mask)
                     loss_gender = self.criterion(pred_gender, gender)
                     loss_age = self.criterion(pred_age, age)

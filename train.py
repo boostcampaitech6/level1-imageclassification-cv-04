@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 import data_loader.data_sets as module_data_set
 import data_loader.augmentations as module_augmentation
 import data_loader.data_loaders as module_data_loader
+from data_loader.cutmix import CutMixCollator
 import model.loss as module_loss
 import model.model as module_arch
 from trainer import Trainer
@@ -69,23 +70,43 @@ def main(data_dir, model_dir, config):
     #                                         num_workers=0,
     #                                         shuffle=False,
     #                                         pin_memory=use_cuda,
-    #                                         drop_last=True)
-    train_dataloader = DataLoader(
-        dataset=train_set,
-        batch_size=args.batch_size,
-        num_workers=0,
-        shuffle=True,
-        pin_memory=use_cuda,
-        drop_last=True,
-    )
-    valid_dataloader = DataLoader(
-        dataset=valid_set,
-        batch_size=args.valid_batch_size,
-        num_workers=0,
-        shuffle=False,
-        pin_memory=use_cuda,
-        drop_last=True,
-    )
+    #      
+    #                                    drop_last=True)
+    if config.augmentation == "CutmixAugmentation":
+        train_dataloader = DataLoader(
+            dataset=train_set,
+            batch_size=args.batch_size,
+            num_workers=0,
+            shuffle=True,
+            pin_memory=use_cuda,
+            drop_last=True,
+            collate_fn=CutMixCollator(1.0, config.cutmix)
+        )
+        valid_dataloader = DataLoader(
+            dataset=valid_set,
+            batch_size=args.valid_batch_size,
+            num_workers=0,
+            shuffle=False,
+            pin_memory=use_cuda,
+            drop_last=True,
+        )   # validation data는 mix 수행 안 함
+    else:
+        train_dataloader = DataLoader(
+            dataset=train_set,
+            batch_size=args.batch_size,
+            num_workers=0,
+            shuffle=True,
+            pin_memory=use_cuda,
+            drop_last=True,
+        )
+        valid_dataloader = DataLoader(
+            dataset=valid_set,
+            batch_size=args.valid_batch_size,
+            num_workers=0,
+            shuffle=False,
+            pin_memory=use_cuda,
+            drop_last=True,
+        )
 
     # build model architecture, then print to console
     model_module = getattr(module_arch, config.model)
@@ -144,6 +165,12 @@ if __name__ == '__main__':
         help="data augmentation type (default: BaseAugmentation)",
     )
     parser.add_argument(
+        "--cutmix", 
+        type=int,
+        default=0,
+        help="which cutmix implementation to use. 0: naive, 1: class box (default: 0)"
+    )
+    parser.add_argument(
         "--dataloader",
         type=str,
         default="MaskDataLoader",
@@ -153,7 +180,8 @@ if __name__ == '__main__':
         "--resize",
         nargs=2,
         type=int,
-        default=[128, 96],
+        # default=[128, 96],
+        default=[224, 224],
         help="resize size for image when training",
     )
     parser.add_argument(
@@ -210,8 +238,8 @@ if __name__ == '__main__':
     parser.add_argument(
         "--patience",
         type=int,
-        default=15,
-        help="ReduceOnLRPlateau feature. Number of epochs with no improvement after which learning rate will be reduced (default: 15)",
+        default=5,
+        help="ReduceOnLRPlateau feature. Number of epochs with no improvement after which learning rate will be reduced (default: 5)",
     )
     parser.add_argument(
         "--log_interval",
@@ -230,7 +258,7 @@ if __name__ == '__main__':
         "--save_val_table", 
         type=int,
         default=0,
-        help="wandb에서 validation 추론 결과를 val_table로 저장할지. 0인 경우 x, 1인 경우 validation set 전체 저장, 2인 경우 틀린 case만 저장"
+        help="wandb에서 validation 추론 결과를 val_table로 저장할지.0인 경우 x, 1인 경우 validation set 전체 prediction case 저장, 2인 경우 틀린 prediction case만 저장"
     )
     parser.add_argument(
         "--multi_head", 

@@ -107,6 +107,8 @@ saved/
 datasets/
 v3/train.sh
 v3/wandb
+sweep.yaml
+sweep.out
 train.sh
 inference.sh
 model/pretrained/
