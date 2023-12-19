@@ -376,11 +376,11 @@ def train(data_dir, model_dir, args):
                     best_val_acc = val_acc
                 torch.save(model.module.state_dict(), f"{fold_dir}/last.pth")
                 wandb.log({
-                        "Valid Loss": train_loss,
+                        "Valid Loss": val_loss,
                         "Valid acc_mask": mask_acc,
                         "Valid acc_gender": gender_acc,
                         "Valid acc_age" : age_acc,
-                        "Valid acc" : train_acc,
+                        "Valid acc" : val_acc,
                         "Learning Rate": current_lr
                     })
                 print(
