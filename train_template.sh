@@ -2,12 +2,12 @@
 NAME="exp"
 # TARGET_GENDER=male
 # TARGET_MASK=2
-WANDB="model_CLIP3Head3Proj_Age_reboot"
-EPOCH=10
+WANDB="model_CLIPQA"
+EPOCH=20
 BATCH=512    # 256
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
-MODEL="CLIP3Head3Proj_Aggregation"
+MODEL="CLIPQA"
 # TODO: 2. model training
 MODEL_ARCH=1
 AUG="BaseAugmentation"
@@ -35,7 +35,6 @@ python train.py \
 --wandb ${WANDB} \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}" \
---target age \
 --lr 0.001 \
 --resize 224 224   # For CLIP model
 

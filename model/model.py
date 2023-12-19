@@ -94,7 +94,7 @@ class CLIP1Head(nn.Module):
         super().__init__()
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
             
         for name, param in self.model.named_parameters():
             if "visual.proj" in name or "text_projection" in name:
@@ -137,7 +137,7 @@ class CLIP3Head1Proj(nn.Module):
         super().__init__()
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
             
         for name, param in self.model.named_parameters():
             if "visual.proj" in name or "text_projection" in name:
@@ -188,7 +188,7 @@ class CLIP3Head3Proj(nn.Module):
         super().__init__()
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
             
         for name, param in self.model.named_parameters():
             param.requires_grad_(False)
@@ -287,28 +287,28 @@ class CLIP3Head3Proj_Aggregation(nn.Module):
         super().__init__()
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
         
         # load pretrained heads
         pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
         pretrained_model.eval()
         
         print("loading age model...", end=' ')
-        model_path = "/data/ephemeral/home/output/✨CLIP3Head3Proj_Age/best.pth"
+        model_path = "/data/ephemeral/home/output/exp32/best.pth"
         pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.age_i = copy.deepcopy(pretrained_model.age_i)
         self.age_t = copy.deepcopy(pretrained_model.age_t)
         print("done.")
                 
         print("loading gender model...", end=' ')
-        model_path = "/data/ephemeral/home/output/✨CLIP3Head3Proj_Gender/best.pth"
+        model_path = "/data/ephemeral/home/output/exp33/best.pth"
         pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.gender_i = copy.deepcopy(pretrained_model.gender_i)
         self.gender_t = copy.deepcopy(pretrained_model.gender_t)
         print("done.")
         
         print("loading mask model...", end=' ')
-        model_path = "/data/ephemeral/home/output/✨CLIP3Head3Proj_Mask/best.pth"
+        model_path = "/data/ephemeral/home/output/exp34/best.pth"
         pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.mask_i = copy.deepcopy(pretrained_model.mask_i)
         self.mask_t = copy.deepcopy(pretrained_model.mask_t)
@@ -375,14 +375,85 @@ class CLIP3Head3Proj_Aggregation(nn.Module):
         age_logits = (100.0 * image_age_features @ text_age_features.T)
         
         return mask_logits, gender_logits, age_logits
+    
+class CLIPQA(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
+        
+        for name, param in self.model.named_parameters():
+            param.requires_grad_(False)
+        
+        Q_mask = """Given a set of images, identify the one that corresponds to the following descriptions:
 
+1. A photo of a person correctly wearing a mask, covering mouth and nose completely.
+2. A photo of improper mask usage, showing exposed mouth or nose, or using a scarf.
+3. A photo of a person without a mask."""
+        Q_gender = """Given a set of images, identify the one that corresponds to the following descriptions:
+
+1. A photo of a man.
+2. A photo of a woman."""
+        Q_age = """Given a set of images, identify the one that corresponds to the following age categories:
+
+1. A photo of a young person under 30.
+2. A photo of a middle-aged person aged over 30 and under 60.
+3. A photo of an elderly person over 60 years old."""
+
+        self.age_features = self.model.encode_text(clip.tokenize(Q_age).cuda()).type(torch.float32)
+        self.gender_features = self.model.encode_text(clip.tokenize(Q_gender).cuda()).type(torch.float32)
+        self.mask_features = self.model.encode_text(clip.tokenize(Q_mask).cuda()).type(torch.float32)
+
+        self.age = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+        self.gender = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 2)
+        )
+        self.mask = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+
+    def forward(self, x):
+        x = self.model.encode_image(x).type(torch.float32)
+        
+        age = torch.concat([self.age_features.repeat(x.shape[0], 1), x], dim=-1)
+        age = self.age(age)
+        gender = torch.concat([self.gender_features.repeat(x.shape[0], 1), x], dim=-1)
+        gender = self.gender(gender)
+        mask = torch.concat([self.mask_features.repeat(x.shape[0], 1), x], dim=-1)
+        mask = self.mask(mask)
+        
+        return mask, gender, age
+        
+        
+        
 
 class CLIP3Head3Proj_Agg_proper_prompt(nn.Module):
     def __init__(self, num_classes):
         super().__init__()
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
         
         # load pretrained heads
         pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
@@ -523,7 +594,7 @@ class CLIP3Head3Proj_Agg_proper_prompt2(nn.Module):
         super().__init__()
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
         
         # load pretrained heads
         # print("loading age model...", end=' ')
@@ -675,7 +746,7 @@ class CLIP3Head3Proj_Age_Aggregation(nn.Module):
         super().__init__()
         
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
+        self.model, _ = clip.load("ViT-B/16", device=self.device)
         
         self.age_i = nn.Sequential(
             nn.Linear(512+64, 128),
