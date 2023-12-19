@@ -89,3 +89,17 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
     def split_dataset(self) -> List[Subset]:
         """프로필 기준으로 나눈 데이터셋을 Subset 리스트로 반환하는 메서드"""
         return [Subset(self, indices) for phase, indices in self.indices.items()]
+
+
+# class MixUpDataset(MaskSplitByProfileDataset):
+#     def __init__(
+#         self,
+#         data_dir,
+#         multi_head,
+#         use_caution,
+#         mean=(0.548, 0.504, 0.479),
+#         std=(0.237, 0.247, 0.246),
+#         val_ratio=0.2
+#     ):
+        
+    

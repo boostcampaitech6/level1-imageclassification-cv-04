@@ -1,12 +1,9 @@
 # ${변수} 정의
 # resize shape
-RESIZE="
-224
-224
-"
+RESIZE="224 224"
 MODEL_ARCH=1
 MODEL=SwinTransformerBase224V1
-RESULT_NAME="SwinTransformerBase224V1_focal_W1"
+RESULT_NAME="SwinTransformerBase224V1_CustomAug_Focal_W1"
 TEST_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/data/eval"
 MODEL_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/results/${RESULT_NAME}/best.pth"
 

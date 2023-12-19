@@ -93,7 +93,10 @@ def main(data_dir, model_dir, config):
     model = torch.nn.DataParallel(model)
 
     # get function handles of loss and metrics
-    criterion = module_loss.create_criterion(config.criterion)
+    if config.criterion == "focal":
+            criterion = module_loss.create_criterion(config.criterion, weight=config.weight)
+    else:
+        criterion = module_loss.create_criterion(config.criterion)
 
     # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
     # trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -175,7 +178,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--val_ratio",
         type=float,
-        default=0.2,
+        default=0.1,
         help="ratio for validaton (default: 0.2)",
     )
     parser.add_argument(
@@ -183,6 +186,12 @@ if __name__ == '__main__':
         type=str,
         default="cross_entropy",
         help="criterion type (default: cross_entropy)",
+    )
+    parser.add_argument(
+        "--weight",
+        type=str,
+        default="none",
+        help="weight type (default: none)",
     )
     parser.add_argument(
         "--lr_decay_step",

@@ -30,7 +30,7 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.best_val_acc = 0
         self.best_val_loss = np.inf
-
+        
         self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
         # logging with tensorboard
         self.logger = SummaryWriter(log_dir=self.save_dir)
@@ -91,7 +91,6 @@ class Trainer(BaseTrainer):
 
                 outs = self.model(inputs)
                 pred_mask, pred_gender, pred_age = outs
-
                 loss_mask = self.criterion(pred_mask, mask)
                 loss_gender = self.criterion(pred_gender, gender)
                 loss_age = self.criterion(pred_age, age)

@@ -8,6 +8,7 @@ from torchvision.transforms import (
     CenterCrop,
     ColorJitter,
     RandomHorizontalFlip,
+    AugMix
 )
 
 
@@ -61,6 +62,27 @@ class AddGaussianNoise(object):
         return self.__class__.__name__ + "(mean={0}, std={1})".format(
             self.mean, self.std
         )
+
+
+# class AugMix(BaseAugmentation):
+#     def __init__(self, resize, mean, std, **args):
+#         super().__init__(resize, mean, std, **args)
+#         augmenter = v2.AugMix()
+#         imgs = [augmenter(orig_img) for _ in range(4)]
+#         plot([orig_img] + imgs)
+
+#         self.transform = Compose(
+#             [
+#                 Resize(resize, Image.BILINEAR),
+#                 ToTensor(),
+#                 Normalize(mean=mean, std=std),
+#                 RandomHorizontalFlip(0.5),
+#             ]
+#         )
+
+#     def __call__(self, image):
+#         return self.transform(image)
+        
 
 
 class CustomAugmentation:
