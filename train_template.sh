@@ -1,8 +1,10 @@
 # ${변수} 정의
 NAME="exp"
-WANDB="model_CLIP3Head3Proj_Aggregation"
-EPOCH=20
-BATCH=512    # 경향을 파악하는건 64가 나은 듯
+# TARGET_GENDER=male
+# TARGET_MASK=2
+WANDB="model_CLIP3Head3Proj_Age_reboot"
+EPOCH=10
+BATCH=512    # 256
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
 MODEL="CLIP3Head3Proj_Aggregation"
@@ -33,5 +35,11 @@ python train.py \
 --wandb ${WANDB} \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}" \
+--target age \
 --lr 0.001 \
 --resize 224 224   # For CLIP model
+
+
+# --valid_batch_size 100 \
+# --target_gender ${TARGET_GENDER} \
+# --target_mask ${TARGET_MASK} \

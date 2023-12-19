@@ -14,6 +14,13 @@ class FocalLoss(nn.Module):
         self.reduction = reduction
 
     def forward(self, input_tensor, target_tensor):
+        # class_bin_count = target_tensor.bincount()
+        
+        # if self.weight: weight = self.weight
+        # else:
+        #     max_bin_count = class_bin_count.max()
+        #     weight = class_bin_count / max_bin_count
+        
         log_prob = F.log_softmax(input_tensor, dim=-1)
         prob = torch.exp(log_prob)
         return F.nll_loss(
@@ -72,12 +79,23 @@ class F1Loss(nn.Module):
         return 1 - f1.mean()
 
 
+class BlendingLoss(nn.Module):
+    def __init__(self, classes=3, epsilon=1e-7):
+        super().__init__()
+        
+        self.f1 = F1Loss(classes=classes, epsilon=epsilon)
+        self.focal = FocalLoss()
+
+    def forward(self, y_pred, y_true):
+        return .75*self.f1(y_pred, y_true) + .25*self.focal(y_pred, y_true)
+
 # 사용 가능한 손실 함수의 진입점
 _criterion_entrypoints = {
     "cross_entropy": nn.CrossEntropyLoss,
     "focal": FocalLoss,
     "label_smoothing": LabelSmoothingLoss,
     "f1": F1Loss,
+    "blending": BlendingLoss
 }
 
 

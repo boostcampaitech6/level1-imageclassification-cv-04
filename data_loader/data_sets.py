@@ -27,11 +27,16 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
         data_dir,
         multi_head,
         use_caution,
+        target_gender=None,
+        target_mask=None,
         mean=(0.548, 0.504, 0.479),
         std=(0.237, 0.247, 0.246),
         val_ratio=0.2,
     ):
         self.indices = defaultdict(list)
+        self.target_gender = target_gender  # male, female
+        self.target_mask = target_mask      # 0(mask), 1(incorrect), 2(normal)
+        # print('\n',self.target_gender, self.target_mask,'\n')
         super().__init__(data_dir, multi_head, use_caution, mean, std, val_ratio)
 
     @staticmethod
@@ -48,6 +53,8 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
         """데이터셋 설정을 하는 메서드. 프로필 기준으로 나눈다."""
         profiles = os.listdir(self.data_dir)
         profiles = [profile for profile in profiles if not profile.startswith(".")]
+        if self.target_gender: 
+            profiles = [profile for profile in profiles if '_'+self.target_gender in profile]
         split_profiles = self._split_profile(profiles, self.val_ratio)
 
         cnt = 0
@@ -66,6 +73,8 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
                         self.data_dir, profile, file_name
                     )  # (resized_data, 000004_male_Asian_54, mask1.jpg)
                     mask_label = self._file_names[_file_name]
+
+                    if self.target_mask and mask_label != self.target_mask: continue
 
                     id, gender, race, age = profile.split("_")
 
