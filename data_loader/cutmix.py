@@ -103,12 +103,21 @@ def cutmix_half_hor(batch, alpha):
         return data, targets, masks, genders, ages
     elif len(batch) == 2:
         data, targets = batch
+        print("Not Implemented")
+        return data, targets
+    
+def cutmix_half_ori(batch, alpha):
+    if len(batch) == 5:
+        data, targets, mask, gender, age = batch
 
+        # caution: cutmix with respect to age class
         indices = torch.randperm(data.size(0))
         shuffled_data = data[indices]           # mix 후보 shuffled_data
-        shuffled_targets = targets[indices]     # mix 후보 shuffled_label
+        shuffled_mask = mask[indices]           # mix 후보 shuffled_mask_label
+        shuffled_gender = gender[indices]       # mix 후보 shuffled_gender_label
+        shuffled_age = age[indices]             # mix 후보 shuffled_age_label
 
-        lam = 0.5
+        lam = 0.5 # alpha 활요한 beta 분포에서 안뽑고 고정값
 
         image_h, image_w = data.shape[2:]
         x0 = int(np.round(image_w / 2))
@@ -121,9 +130,15 @@ def cutmix_half_hor(batch, alpha):
 
         # adjust lambda to exactly match pixel ratio
         lam = 1 - ((x1 - x0) * (y1 - y0) / (image_h * image_w))
-        
-        targets = (targets, shuffled_targets, lam)
 
+        masks = (mask, shuffled_mask, lam)
+        genders = (gender, shuffled_gender, lam)
+        ages = (age, shuffled_age, lam)
+
+        return data, targets, masks, genders, ages
+    elif len(batch) == 2:
+        data, targets = batch
+        print("Not Implemented")
         return data, targets
 
 
@@ -137,7 +152,8 @@ class CutMixCollator:
         if self.mode == 0:
             batch = cutmix(batch, self.alpha)
         elif self.mode == 1:
-            batch = cutmix_half_hor(batch, self.alpha)
+            batch = cutmix_half_hor(batch, self.alpha) # lambda = 0.75
+            # batch = cutmix_half_ori(batch, self.alpha) # lambda = 0.5 구현 이상함
         # elif self.mode == 2: # TODO
         return batch
 
