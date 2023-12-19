@@ -27,7 +27,7 @@ def seed_everything(seed):
     random.seed(seed)
 
 
-def main(data_dir, model_dir, config):
+def main(config):
     seed_everything(config.seed)
 
     # settings
@@ -37,7 +37,7 @@ def main(data_dir, model_dir, config):
     # setup data_set instance
     dataset_module = getattr(module_data_set, config.dataset)  # default: MaskSplitByProfileDataset
     dataset = dataset_module(
-        data_dir=data_dir,
+        data_dir=config.data_dir,
         multi_head=config.multi_head,
         use_caution=config.use_caution_data
     )
@@ -46,7 +46,7 @@ def main(data_dir, model_dir, config):
     dataset_std = dataset.std
 
     # setup augmentation instance
-    augmentation_module = getattr(module_augmentation, config.augmentation)  # default: MaskSplitByProfileDataset
+    augmentation_module = getattr(module_augmentation, config.augmentation)  # default: BaseAugmentation
     transform = augmentation_module(
         resize=config.resize,
         mean=dataset.mean,
@@ -56,23 +56,10 @@ def main(data_dir, model_dir, config):
 
     # setup data_loader instances
     train_set, valid_set = dataset.split_dataset()
-    # train_loader_module = getattr(module_data_loader, config.dataloader)
-    # train_data_loader = train_loader_module(dataset=train_set,
-    #                                         batch_size=config.batch_size,
-    #                                         num_workers=0,
-    #                                         shuffle=True,
-    #                                         pin_memory=use_cuda,
-    #                                         drop_last=True)
-    # valid_loader_module = getattr(module_data_loader, config.dataloader)
-    # valid_data_loader = valid_loader_module(dataset=valid_set,
-    #                                         batch_size=config.valid_batch_size,
-    #                                         num_workers=0,
-    #                                         shuffle=False,
-    #                                         pin_memory=use_cuda,
-    #                                         drop_last=True)
+
     train_dataloader = DataLoader(
         dataset=train_set,
-        batch_size=args.batch_size,
+        batch_size=config.batch_size,
         num_workers=0,
         shuffle=True,
         pin_memory=use_cuda,
@@ -80,7 +67,7 @@ def main(data_dir, model_dir, config):
     )
     valid_dataloader = DataLoader(
         dataset=valid_set,
-        batch_size=args.valid_batch_size,
+        batch_size=config.valid_batch_size,
         num_workers=0,
         shuffle=False,
         pin_memory=use_cuda,
@@ -105,7 +92,8 @@ def main(data_dir, model_dir, config):
         model.parameters(),
         lr=config.lr,
     )
-    lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+    
+    lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=0.5)
 
     trainer = Trainer(model, criterion, optimizer,
                       config=config,
@@ -116,141 +104,45 @@ def main(data_dir, model_dir, config):
                       dataset_std = dataset_std,
                       lr_scheduler=lr_scheduler)
 
-    trainer.train()
+    trainer.train()  # 학습 시작
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Data and model checkpoints directories
-    parser.add_argument(
-        "--seed", type=int, default=42, help="random seed (default: 42)"
-    )
-    parser.add_argument(
-        "--epochs", type=int, default=30, help="number of epochs to train (default: 64)"
-    )
-    parser.add_argument(
-        "--dataset",
-        type=str,
-        default="MaskSplitByProfileDataset",
-        help="dataset augmentation type (default: MaskSplitByProfileDataset)",
-    )
-    parser.add_argument(
-        "--augmentation",
-        type=str,
-        default="BaseAugmentation",
-        help="data augmentation type (default: BaseAugmentation)",
-    )
-    parser.add_argument(
-        "--dataloader",
-        type=str,
-        default="MaskDataLoader",
-        help="dataloader type (default: MaskDataLoader)"
-    )
-    parser.add_argument(
-        "--resize",
-        nargs=2,
-        type=int,
-        default=[128, 96],
-        help="resize size for image when training",
-    )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=64,
-        help="input batch size for training (default: 64)",
-    )
-    parser.add_argument(
-        "--valid_batch_size",
-        type=int,
-        default=1000,
-        help="input batch size for validing (default: 1000)",
-    )
-    parser.add_argument(
-        "--model", type=str, default="EfficientNetB0MultiHead", help="model type (default: EfficientNetB0MultiHead)"
-    )
-    parser.add_argument(
-        "--optimizer", type=str, default="Adam", help="optimizer type (default: Adam)"
-    )
-    parser.add_argument(
-        "--lr", type=float, default=1e-3, help="learning rate (default: 1e-3)"
-    )
-    parser.add_argument(
-        "--val_ratio",
-        type=float,
-        default=0.1,
-        help="ratio for validaton (default: 0.2)",
-    )
-    parser.add_argument(
-        "--criterion",
-        type=str,
-        default="cross_entropy",
-        help="criterion type (default: cross_entropy)",
-    )
-    parser.add_argument(
-        "--weight",
-        type=str,
-        default="none",
-        help="weight type (default: none)",
-    )
-    parser.add_argument(
-        "--lr_decay_step",
-        type=int,
-        default=20,
-        help="learning rate scheduler deacy step (default: 20)",
-    )
-    parser.add_argument(
-        "--log_interval",
-        type=int,
-        default=20,
-        help="how many batches to wait before logging training status",
-    )
-    parser.add_argument(
-        "--best_model",
-        type=str,
-        default="acc",
-        help="Usage: 'acc' or 'loss', best model 선정 기준을 accuracy로 할지, loss로 할지 여부"
-    )
-    parser.add_argument(
-        "--name", default="exp", help="model save at {SM_MODEL_DIR}/{name}"
-    )
-    parser.add_argument(
-        "--wandb", default="model_EfficientNetB0", 
-        help="wandb run name. 실험 대상이 되는 \"arg종류_arg값\" 형태로 적어주세요 (예: model_EfficientNetB4)."
-    )
-    parser.add_argument(
-        "--save_val_table", 
-        type=int,
-        default=0,
-        help="wandb에서 validation 추론 결과를 val_table로 저장할지. 0인 경우 x, 1인 경우 validation set 전체 저장, 2인 경우 틀린 case만 저장"
-    )
-    parser.add_argument(
-        "--multi_head", 
-        type=int,
-        default=1,
-        help="모델의 head가 1개(num_classes=18)인 경우 False, 3개인 경우 True"
-    )
-    parser.add_argument(
-        "--use_caution_data",
-        type=int,
-        default=1,
-        help="성별 판별이 어려운 데이터(EDA-오류처럼 보이는 데이터) 사용 여부"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="random seed (default: 42)")
+    parser.add_argument("--epochs", type=int, default=30, help="number of epochs to train (default: 64)")
+    parser.add_argument("--dataset", type=str, default="MaskSplitByProfileDataset",
+                        help="dataset augmentation type (default: MaskSplitByProfileDataset)",)
+    parser.add_argument("--augmentation", type=str, default="BaseAugmentation", help="data augmentation type (default: BaseAugmentation)",)
+    parser.add_argument("--dataloader", type=str, default="MaskDataLoader", help="dataloader type (default: MaskDataLoader)")
+    parser.add_argument("--resize", nargs=2, type=int, default=[128, 96], help="resize size for image when training",)
+    parser.add_argument("--mixup", type=int, default=0, help="MixUp 실시 여부 / 0: False, 1: True")
+    parser.add_argument("--batch_size", type=int, default=64, help="input batch size for training (default: 64)",)
+    parser.add_argument("--valid_batch_size", type=int, default=1000, help="input batch size for validing (default: 1000)",)
+    parser.add_argument("--model", type=str, default="EfficientNetB0MultiHead", help="model type (default: EfficientNetB0MultiHead)")
+    parser.add_argument("--optimizer", type=str, default="Adam", help="optimizer type (default: Adam)")
+    parser.add_argument("--lr", type=float, default=1e-3, help="learning rate (default: 1e-3)")
+    parser.add_argument("--val_ratio", type=float, default=0.2, help="ratio for validaton (default: 0.2)",)
+    parser.add_argument("--criterion", type=str, default="cross_entropy", help="criterion type (default: cross_entropy)",)
+    parser.add_argument("--weight", type=str, default="none", help="weight type (default: none)",)
+    parser.add_argument("--lr_decay_step", type=int, default=20, help="learning rate scheduler deacy step (default: 20)",)
+    parser.add_argument("--log_interval", type=int, default=20, help="how many batches to wait before logging training status",)
+    parser.add_argument("--best_model", type=str, default="acc", help="Usage: 'acc' or 'loss', best model 선정 기준을 accuracy로 할지, loss로 할지 여부")
+    parser.add_argument("--name", default="exp", help="model save at {SM_MODEL_DIR}/{name}")
+    parser.add_argument("--wandb", default="model_EfficientNetB0",
+                        help="wandb run name. 실험 대상이 되는 \"arg종류_arg값\" 형태로 적어주세요 (예: model_EfficientNetB4).")
+    parser.add_argument("--save_val_table",  type=int, default=0,
+                        help="wandb에 추론 결과를 이미지와 함께 저장할지 여부, 0: not save, 1: total validation set, 2: wrong case only")
+    parser.add_argument("--multi_head",  type=int, default=1, help="모델의 head가 1개(num_classes=18)인 경우 False, 3개인 경우 True")
+    parser.add_argument("--use_caution_data", type=int, default=1, help="성별 판별이 어려운 데이터(EDA-오류처럼 보이는 데이터) 사용 여부")
 
     # Container environment
-    parser.add_argument(
-        "--data_dir",
-        type=str,
-        default=os.environ.get("SM_CHANNEL_TRAIN", "/data/ephemeral/maskdata/train/images")
-    )
-    parser.add_argument(
-        "--model_dir", type=str, default=os.environ.get("SM_MODEL_DIR", "/data/ephemeral/home/model")
-    )
+    parser.add_argument("--data_dir", type=str, default=os.environ.get("SM_CHANNEL_TRAIN", "/data/ephemeral/maskdata/train/images"))
+    parser.add_argument("--model_dir", type=str, default=os.environ.get("SM_MODEL_DIR", "/data/ephemeral/home/model"))
 
     args = parser.parse_args()
     print(args)
 
-    data_dir = args.data_dir
-    model_dir = args.model_dir
-
-    main(data_dir, model_dir, args)
+    main(args)

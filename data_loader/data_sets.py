@@ -91,15 +91,11 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
         return [Subset(self, indices) for phase, indices in self.indices.items()]
 
 
-# class MixUpDataset(MaskSplitByProfileDataset):
-#     def __init__(
-#         self,
-#         data_dir,
-#         multi_head,
-#         use_caution,
-#         mean=(0.548, 0.504, 0.479),
-#         std=(0.237, 0.247, 0.246),
-#         val_ratio=0.2
-#     ):
-        
-    
+# class ToNumpy:
+#     def __call__(self, pil_image):
+#         np_image = np.array(pil_image, dtype=np.uint8)
+#         np_image = np.rollaxis(np_image, 2)
+#         return np_image
+
+
+# class B
