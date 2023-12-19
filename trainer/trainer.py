@@ -14,6 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 from base.base_trainer import BaseTrainer
 import data_loader.data_sets as datasets
 
+from sklearn.model_selection import StratifiedKFold
+
 class Trainer(BaseTrainer):
     def __init__(self, model, criterion, optimizer, config, 
                  device=None, train_dataloader=None, valid_dataloader=None, 
