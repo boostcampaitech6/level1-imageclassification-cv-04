@@ -56,6 +56,9 @@ def main(data_dir, model_dir, config):
 
     # setup data_loader instances
     train_set, valid_set = dataset.split_dataset()
+    print("train dataset's size is", len(train_set))
+    print("valid dataset's size is", len(valid_set))
+    
     # train_loader_module = getattr(module_data_loader, config.dataloader)
     # train_data_loader = train_loader_module(dataset=train_set,
     #                                         batch_size=config.batch_size,
@@ -165,7 +168,7 @@ if __name__ == '__main__':
         help="input batch size for validing (default: 1000)",
     )
     parser.add_argument(
-        "--model", type=str, default="EfficientNetB0MultiHead", help="model type (default: EfficientNetB0MultiHead)"
+        "--model", type=str, default="CLIP3Head3Proj_Aggregation1", help="model type (default: EfficientNetB0MultiHead)"
     )
     parser.add_argument(
         "--optimizer", type=str, default="Adam", help="optimizer type (default: Adam)"
@@ -221,10 +224,10 @@ if __name__ == '__main__':
     parser.add_argument(
         "--data_dir",
         type=str,
-        default=os.environ.get("SM_CHANNEL_TRAIN", "/data/ephemeral/maskdata/train/images")
+        default=os.environ.get("SM_CHANNEL_TRAIN", "/data/ephemeral/home/maskdata/train/images")
     )
     parser.add_argument(
-        "--model_dir", type=str, default=os.environ.get("SM_MODEL_DIR", "/data/ephemeral/home/model")
+        "--model_dir", type=str, default=os.environ.get("SM_MODEL_DIR", "/data/ephemeral/home/home/model")
     )
     
     # Train target    

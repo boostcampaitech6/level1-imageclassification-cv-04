@@ -47,7 +47,7 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
     def setup(self):
         """데이터셋 설정을 하는 메서드. 프로필 기준으로 나눈다."""
         profiles = os.listdir(self.data_dir)
-        profiles = [profile for profile in profiles if not profile.startswith(".")]
+        profiles = [profile for profile in profiles if not profile.startswith(".")][::2]
         split_profiles = self._split_profile(profiles, self.val_ratio)
 
         cnt = 0
