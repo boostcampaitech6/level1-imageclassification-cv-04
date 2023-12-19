@@ -66,6 +66,51 @@ class EfficientNetB0MultiHead(BaseModel):
         gender = self.gender(x)
         age = self.age(x)
         return mask, gender, age
+
+
+class SwinTransformerBase224V1(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model("swin_base_patch4_window7_224", pretrained=True, num_classes=0)  # num_features = 1024
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        self.mask = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+        self.gender = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 2)
+        )
+        self.age = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 3)
+        )
+        
+    
+    def forward(self, x):
+        x = self.model(x)
+        mask = self.mask(x)
+        gender = self.gender(x)
+        age = self.age(x)
+        return mask, gender, age
     
 
 # Custom Model Template
