@@ -30,6 +30,8 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.best_val_acc = 0
         self.best_val_loss = np.inf
+        
+        self.scaler = torch.cuda.amp.GradScaler()
 
         self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
         # logging with tensorboard
@@ -91,11 +93,11 @@ class Trainer(BaseTrainer):
                     target = targets[target_index]
                     target = target.to(self.device)
                     
-                    out = self.model(inputs)[target_index]
-                    loss = self.criterion(out, target)
+                    with torch.cuda.amp.autocast():
+                        out = self.model(inputs)[target_index]
+                        loss = self.criterion(out, target)                
+                        preds = torch.argmax(out, dim=-1)
                     
-                    preds = torch.argmax(out, dim=-1)
-                
                 else:
                     inputs, labels, mask, gender, age = train_batch
                     inputs = inputs.to(self.device)
@@ -104,27 +106,28 @@ class Trainer(BaseTrainer):
                     gender = gender.to(self.device)
                     age = age.to(self.device)
 
-                    outs = self.model(inputs)
-                    pred_mask, pred_gender, pred_age = outs
-
-                    loss_mask = self.criterion(pred_mask, mask)
-                    loss_gender = self.criterion(pred_gender, gender)
-                    loss_age = self.criterion(pred_age, age)
-                    loss = loss_mask + loss_gender + loss_age
-                    preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                    with torch.cuda.amp.autocast():
+                        outs = self.model(inputs)
+                        pred_mask, pred_gender, pred_age = outs
+                        loss_mask = self.criterion(pred_mask, mask)
+                        loss_gender = self.criterion(pred_gender, gender)
+                        loss_age = self.criterion(pred_age, age)
+                        loss = loss_mask + loss_gender + loss_age
+                        preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
             else:
                 inputs, labels = train_batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
 
-                outs = self.model(inputs)
-                loss = self.criterion(outs, labels)
+                with torch.cuda.amp.autocast():
+                    outs = self.model(inputs)
+                    loss = self.criterion(outs, labels)
+                    preds = torch.argmax(outs, dim=-1)
 
-                preds = torch.argmax(outs, dim=-1)
-
-            loss.backward()
-            self.optimizer.step()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             
             loss_value += loss.item()
             if self.config.target:
@@ -225,7 +228,7 @@ class Trainer(BaseTrainer):
                     loss_item = self.criterion(outs, labels).item()
 
                 if self.config.target:
-                    acc_item = (target == preds).sum().item()
+                    acc_item = (target == preds).sum().item()                
                 else:
                     acc_item = (labels == preds).sum().item()
                 val_loss_items.append(loss_item)
@@ -248,12 +251,13 @@ class Trainer(BaseTrainer):
 
             val_loss = np.sum(val_loss_items) / len(self.valid_dataloader)
             val_acc = np.sum(val_acc_items) / (len(self.valid_dataloader) * self.config.valid_batch_size)
-            if val_loss < self.best_val_loss:
+            self.best_val_loss = min(self.best_val_loss, val_loss)
+            if val_acc > self.best_val_acc:
                 print(
-                    f"New best model for val loss : {val_loss:4.2%}! saving the best model.."
-                )                
+                    f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
+                )
+                
                 torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
-                self.best_val_loss = val_loss
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
