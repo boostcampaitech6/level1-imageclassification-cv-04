@@ -231,8 +231,8 @@ class CLIP3Head3Proj(nn.Module):
         )
         
         mask_captions = [
-            'A photo of a person correctly wearing a mask, covering mouth and nose completely.',
-            'A photo of improper mask usage, showing exposed mouth or nose, or using a scarf.',
+            'A person correctly wearing a mask, covering mouth and nose completely.',
+            'A photo of a person wearing a mask incorrectly, with the mouth and nose not properly covered or the eyes covered by the mask, and possibly wearing a scarf.',
             'A photo of a person without mask.',
         ]
         gender_captions = [
@@ -248,7 +248,6 @@ class CLIP3Head3Proj(nn.Module):
         mask_captions = clip.tokenize([text for text in mask_captions]).to(self.device)
         gender_captions = clip.tokenize([text for text in gender_captions]).to(self.device)
         age_captions = clip.tokenize([text for text in age_captions]).to(self.device)
-        # age_captions = clip.tokenize([text for text in male_2_age_captions]).to(self.device)
         
         self.text_mask_features = self.model.encode_text(mask_captions).type(torch.float32)
         self.text_gender_features = self.model.encode_text(gender_captions).type(torch.float32)
@@ -280,51 +279,106 @@ class CLIP3Head3Proj(nn.Module):
         age_logits = (100.0 * image_age_features @ text_age_features.T)
         
         return mask_logits, gender_logits, age_logits
-
-
-class CLIP3Head3Proj_Aggregation(nn.Module):
+    
+class CLIP3Head3Proj_Aggregation1(CLIP3Head3Proj):
     def __init__(self, num_classes):
-        super().__init__()
+        super().__init__(num_classes)
         
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model, _ = clip.load("ViT-B/16", device=self.device)
+        print("loading pretrained models...", end=' ')
+        
+        age_model = torch.load('/data/ephemeral/home/output/head_age_ep10/best.pth')
+        gender_model = torch.load('/data/ephemeral/home/output/head_gender_ep10/best.pth')
+        mask_model = torch.load('/data/ephemeral/home/output/head_mask_ep10_tanos_detail/best.pth')
+
+        self.age_i.load_state_dict({k[6:]:v for k,v in age_model.items() if k.startswith('age_i')})
+        self.age_t.load_state_dict({k[6:]:v for k,v in age_model.items() if k.startswith('age_t')})
+        self.gender_i.load_state_dict({k[9:]:v for k,v in gender_model.items() if k.startswith('gender_i')})
+        self.gender_t.load_state_dict({k[9:]:v for k,v in gender_model.items() if k.startswith('gender_t')})
+        self.mask_i.load_state_dict({k[7:]:v for k,v in mask_model.items() if k.startswith('mask_i')})
+        self.mask_t.load_state_dict({k[7:]:v for k,v in mask_model.items() if k.startswith('mask_t')})
+        self.age_i.to(self.device)
+        self.age_t.to(self.device)
+        self.gender_i.to(self.device)
+        self.gender_t.to(self.device)
+        self.mask_i.to(self.device)
+        self.mask_t.to(self.device)
+
+        print("done.")
+
+        del age_model
+        del gender_model
+        del mask_model
+    
+class CLIP3Head3Proj_Aggregation3(CLIP3Head3Proj):
+    def __init__(self, num_classes):
+        super().__init__(num_classes)
+        
+        pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
         
         # load pretrained heads
-        pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
-        pretrained_model.eval()
-        
         print("loading age model...", end=' ')
-        model_path = "/data/ephemeral/home/output/exp32/best.pth"
+        model_path = "/data/ephemeral/home/output/head_age_ep10/best.pth"
         pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.age_i = copy.deepcopy(pretrained_model.age_i)
         self.age_t = copy.deepcopy(pretrained_model.age_t)
         print("done.")
-                
+        
         print("loading gender model...", end=' ')
-        model_path = "/data/ephemeral/home/output/exp33/best.pth"
+        model_path = "/data/ephemeral/home/output/head_gender_ep10/best.pth"
         pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.gender_i = copy.deepcopy(pretrained_model.gender_i)
         self.gender_t = copy.deepcopy(pretrained_model.gender_t)
         print("done.")
         
         print("loading mask model...", end=' ')
-        model_path = "/data/ephemeral/home/output/exp34/best.pth"
+        model_path = "/data/ephemeral/home/output/head_mask_ep10_tanos_detail/best.pth"
         pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.mask_i = copy.deepcopy(pretrained_model.mask_i)
         self.mask_t = copy.deepcopy(pretrained_model.mask_t)
         print("done.")
         
         del pretrained_model    # free
+    
+class CLIP3Head3Proj_Aggregation2(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model, self.preprocess = clip.load("ViT-B/16", device=self.device)
             
         for name, param in self.model.named_parameters():
             param.requires_grad_(False)
-        # for name, param in self.named_parameters():
-        #     if param.requires_grad:
-        #         print(f'{name} will be trained.')
+            
+        pretrained_model = CLIP3Head3Proj(num_classes=18).to(self.device)
         
+        # load pretrained heads
+        print("loading age model...", end=' ')
+        model_path = "/data/ephemeral/home/output/head_age_ep10/best.pth"
+        pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.age_i = copy.deepcopy(pretrained_model.age_i)
+        self.age_t = copy.deepcopy(pretrained_model.age_t)
+        print("done.")
+                
+        print("loading gender model...", end=' ')
+        model_path = "/data/ephemeral/home/output/head_gender_ep10/best.pth"
+        pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.gender_i = copy.deepcopy(pretrained_model.gender_i)
+        self.gender_t = copy.deepcopy(pretrained_model.gender_t)
+        print("done.")
+        
+        print("loading mask model...", end=' ')
+        model_path = "/data/ephemeral/home/output/head_mask_ep10_tanos_detail/best.pth"
+        pretrained_model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.mask_i = copy.deepcopy(pretrained_model.mask_i)
+        self.mask_t = copy.deepcopy(pretrained_model.mask_t)
+        print("done.")
+        
+        del pretrained_model    # free
+
+
         mask_captions = [
-            'A photo of a person correctly wearing a mask, covering mouth and nose completely.',
-            'A photo of improper mask usage, showing exposed mouth or nose, or using a scarf.',
+            'A person correctly wearing a mask, covering mouth and nose completely.',
+            'A photo of a person wearing a mask incorrectly, with the mouth and nose not properly covered or the eyes covered by the mask, and possibly wearing a scarf.',
             'A photo of a person without mask.',
         ]
         gender_captions = [

@@ -1,13 +1,11 @@
 # ${변수} 정의
-NAME="exp"
-# TARGET_GENDER=male
-# TARGET_MASK=2
-WANDB="model_CLIPQA"
-EPOCH=20
-BATCH=512    # 256
+NAME="reboot"
+WANDB="test_CLIP3Head3Proj_Aggregation2"
+EPOCH=30
+BATCH=256    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
-MODEL="CLIPQA"
+MODEL="CLIP3Head3Proj_Aggregation2"
 # TODO: 2. model training
 MODEL_ARCH=1
 AUG="BaseAugmentation"
@@ -17,7 +15,7 @@ OPT="Adam"
 # TODO: 8. additional
 DATA_DIR="/data/ephemeral/home/maskdata"
 OUTPUT_DIR="/data/ephemeral/home/output"
-DECAY_STEP=5
+DECAY_STEP=10
 
 # run with args
 python train.py \
@@ -35,7 +33,8 @@ python train.py \
 --wandb ${WANDB} \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}" \
---lr 0.001 \
+--val_ratio 0.1 \
+--lr 0.0001 \
 --resize 224 224   # For CLIP model
 
 
