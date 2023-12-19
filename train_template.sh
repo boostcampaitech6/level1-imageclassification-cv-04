@@ -1,11 +1,11 @@
 # ${변수} 정의
-NAME="reboot"
-WANDB="test_CLIP3Head3Proj_Aggregation2"
-EPOCH=30
+NAME="test" # test / exp
+WANDB="test_CLIP3Head3Proj_age_prompt_tuning"
+EPOCH=10
 BATCH=256    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
-MODEL="CLIP3Head3Proj_Aggregation2"
+MODEL="CLIP3Head3Proj"
 # TODO: 2. model training
 MODEL_ARCH=1
 AUG="BaseAugmentation"
@@ -15,7 +15,7 @@ OPT="Adam"
 # TODO: 8. additional
 DATA_DIR="/data/ephemeral/home/maskdata"
 OUTPUT_DIR="/data/ephemeral/home/output"
-DECAY_STEP=10
+DECAY_STEP=5
 
 # run with args
 python train.py \
@@ -34,7 +34,8 @@ python train.py \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}" \
 --val_ratio 0.1 \
---lr 0.0001 \
+--lr 0.001 \
+--target age \
 --resize 224 224   # For CLIP model
 
 

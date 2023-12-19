@@ -39,9 +39,7 @@ def main(data_dir, model_dir, config):
     dataset = dataset_module(
         data_dir=data_dir,
         multi_head=config.multi_head,
-        use_caution=config.use_caution_data,
-        target_gender=config.target_gender,
-        target_mask=config.target_mask,
+        use_caution=config.use_caution_data
     )
     num_classes = dataset.num_classes
     dataset_mean = dataset.mean
@@ -235,12 +233,6 @@ if __name__ == '__main__':
     # Train target    
     parser.add_argument(
         "--target", type=str, default=""
-    )
-    parser.add_argument(
-        "--target_gender", type=str, default=None
-    )
-    parser.add_argument(
-        "--target_mask", type=int, default=None
     )
 
 
