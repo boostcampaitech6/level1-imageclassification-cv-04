@@ -9,3 +9,4 @@ torch==2.1.1
 torchvision==0.16.1
 timm==0.9.12
 wandb
+albumentations
