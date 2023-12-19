@@ -79,11 +79,11 @@ class Trainer(BaseTrainer):
         self.model.train()
         loss_value = 0
         matches = 0
-
-        acc_mask_items = []
-        acc_gender_items = []
-        acc_age_items = []
         
+        acc_mask_items = []  
+        acc_gender_items = []  
+        acc_age_items = []  
+
         for idx, train_batch in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
             if self.config.multi_head:
@@ -159,10 +159,17 @@ class Trainer(BaseTrainer):
                 train_loss = loss_value / self.config.log_interval
                 train_acc = matches / self.config.batch_size / self.config.log_interval
                 current_lr = self.get_lr(self.optimizer)
-                print(
-                    f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
-                    f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
-                )
+                if self.config.multi_head:
+                    print(
+                        f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
+                        f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || "
+                        f"mask accuracy {np.mean(acc_mask_items):4.2%} || gender accuracy {np.mean(acc_gender_items):4.2%} || age accuracy {np.mean(acc_age_items):4.2%} ||  lr {current_lr}"
+                    )
+                else:
+                    print(
+                        f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
+                        f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
+                    )
 
                 # tensorboard: 학습 단계에서 Loss, Accuracy 로그 저장
                 self.logger.add_scalar(
@@ -176,10 +183,19 @@ class Trainer(BaseTrainer):
                 matches = 0   
 
                 # wandb: 학습 단계에서 Loss, Accuracy 로그 저장
-                wandb.log({
-                    "Train loss": train_loss,
-                    "Train acc" : train_acc
-                })
+                if self.config.multi_head:
+                    wandb.log({
+                        "Train loss": train_loss,
+                        "Train acc" : train_acc,
+                        "Train acc mask": np.mean(acc_mask_items),
+                        "Train acc gender": np.mean(acc_gender_items),
+                        "Train acc age": np.mean(acc_age_items),
+                    })
+                else:
+                    wandb.log({
+                        "Train loss": train_loss,
+                        "Train acc" : train_acc,
+                    })
 
             if self.config.augmentation == "CutmixAugmentation" and epoch == 1: # 첫번째 epoch에서만 저장하도록
                 columns_cutmix = ["image"]
@@ -196,6 +212,7 @@ class Trainer(BaseTrainer):
                     cutmix_traindata.add_data(wandb.Image(input))
 
                 wandb.log({f"{self.config.wandb}_cutmix_traindata": cutmix_traindata})
+
 
         if self.lr_scheduler is not None:
             if self.config.scheduler != "ReduceLROnPlateau":
@@ -233,7 +250,7 @@ class Trainer(BaseTrainer):
                 else:
                     columns = ["image", "gt", "predict"]
                     val_table = wandb.Table(columns=columns)
-
+            
             for val_batch in self.valid_dataloader:
                 if self.config.multi_head:
                     inputs, labels, mask, gender, age = val_batch
@@ -252,6 +269,30 @@ class Trainer(BaseTrainer):
                     loss_age = self.criterion(pred_age, age)
                     loss_item = (loss_mask + loss_gender + loss_age).item()
                     preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                    
+                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+
+                    val_acc_mask_items.append(acc_mask)
+                    val_acc_gender_items.append(acc_gender)
+                    val_acc_age_items.append(acc_age)
+
+                    # val_table logging
+                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
+                        inputs_np = (
+                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
+                        )
+                        inputs_np = self.denormalize_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
+                        for input, m_gt, m_pt, g_gt, g_pt, a_gt, a_pt in zip(inputs_np, mask, torch.argmax(pred_mask, dim=-1), gender, torch.argmax(pred_gender, dim=-1), age, torch.argmax(pred_age, dim=-1)):
+                            if self.config.save_val_table == 2:
+                                if m_gt != m_pt or g_gt != g_pt or a_gt != a_pt:
+                                    val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
+                            else:
+                                val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
+                    
 
                     acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
                     acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()

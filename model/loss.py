@@ -14,17 +14,20 @@ class FocalLoss(nn.Module):
         self.reduction = reduction
 
     def forward(self, input_tensor, target_tensor):
-        ## weight definition
-        bin_count = target_tensor.bin_count()
-        # TODO
-        # self.weight
-        ##
+        class_bin_count = target_tensor.bincount()
+        ## Ver.1
+        maximum_bin = class_bin_count.max()
+        weight = maximum_bin / class_bin_count  # 각 배치마다 하나의 클래스에 대한 데이터의 개수가 다른 클래스보다 상대적으로 작을수록 더 큰 가중치 부여
+        ## Ver.2
+        minimum_bin = class_bin_count.min()
+        weight = minimum_bin / class_bin_count  # 각 배치마다 하나의 클래스에 대한 데이터의 개수가 다른 클래스보다 상대적으로 클수록 더 작은 가중치 부여
+        
         log_prob = F.log_softmax(input_tensor, dim=-1)
         prob = torch.exp(log_prob)
         return F.nll_loss(
             ((1 - prob) ** self.gamma) * log_prob,
             target_tensor,
-            weight=self.weight,
+            weight=weight,
             reduction=self.reduction,
         )
 

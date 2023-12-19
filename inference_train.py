@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from PIL import Image
 from tqdm import tqdm
+import glob 
 
 import data_loader.data_loaders as module_data
 import model.loss as module_loss
@@ -20,6 +21,17 @@ def decode_pred(mask,gender,age):
     age_dict = {0:'YOUNG',1:'MIDDLE',2:'OLD'}
     
     return mask_dict[mask],gender_dict[gender],age_dict[age]
+
+
+def load_images_from_folder(folder_paths):
+    image_list = []
+    for folder_path in folder_paths:
+        for filename in os.listdir(folder_path):
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
+                image_path = os.path.join(folder_path, filename)
+                image_list.append(image_path)
+
+    return image_list
 
 
 class TestDataset(Dataset):
@@ -42,10 +54,10 @@ def main(config):
     device = torch.device('cuda')
 
     # meta 데이터와 이미지 경로를 불러옵니다.
-    submission = pd.read_csv(os.path.join(config.test_dir, 'info.csv'))
-    image_dir = os.path.join(config.test_dir, 'images')
-    image_paths = [os.path.join(image_dir, img_id) for img_id in submission.ImageID]
-
+    submission = pd.read_csv(os.path.join(config.test_dir, 'output.csv'))
+    folder_path = sorted(glob.glob(config.test_dir+"/images/*"))
+    image_paths = load_images_from_folder(folder_paths=folder_path)
+    
     # Test Dataset 클래스 객체를 생성하고 DataLoader를 만듭니다.
     transform = transforms.Compose([
         Resize(config.resize, Image.BILINEAR),
@@ -89,9 +101,8 @@ def main(config):
                 pred = model(images)
                 pred = pred.argmax(dim=-1)
                 all_predictions.extend(pred.cpu().numpy())
-                
-    submission['ans'] = all_predictions
-
+    
+    submission['result'] = all_predictions
     submission["mask"] = pred_masks
     submission["gender"] = pred_genders
     submission["age"] = pred_ages
@@ -112,7 +123,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--test_dir",
         type=str,
-        default=os.environ.get("SM_CAHNNEL_EVAL", "/data/ephemeral/maskdata/eval")
+        default=os.environ.get("SM_CAHNNEL_EVAL", "/data/ephemeral/maskdata/train")
     )
     parser.add_argument(
         "--resize",
@@ -130,7 +141,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--model_path",
         type=str,
-        default="/data/ephemeral/home/model/exp/best.pth",
+        default="/data/ephemeral/home/model/exp9/best.pth",
         help="사용할 모델의 weight 경로를 입력해주세요 (예: /data/ephemeral/home/model/exp/best.pth)"
     )
     parser.add_argument(
