@@ -249,7 +249,7 @@ class CLIP3Head3Proj(nn.Module):
             # 'a photo of an elderly person over 60 years old.',
             'the young person looks like under 30 years old.'
             'a photo of a middle-aged person.',
-            'A photo of an elderly person over 60 years old.',
+            'the elderly person looks like over 60 years old.',
         ]
         
         # NOTE: 일반적으로 잘 학습이 되지 않기 때문에 guide를 제공합니다. 
