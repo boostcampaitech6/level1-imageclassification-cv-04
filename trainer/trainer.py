@@ -29,8 +29,10 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.best_val_acc = 0
         self.best_val_loss = np.inf
+        self.valid_criterion = e
 
-        self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
+        # self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
+        self.save_dir = self.increment_path(os.path.join(self.config.model_dir, wandb.run.name))
         # logging with tensorboard
         self.logger = SummaryWriter(log_dir=self.save_dir)
         with open(os.path.join(self.save_dir, "config.json"), "w", encoding="utf-8") as f:
@@ -54,6 +56,7 @@ class Trainer(BaseTrainer):
         for param_group in optimizer.param_groups:
             return param_group["lr"]
 
+    
     def _train_epoch(self, epoch):
         self.model.train()
         loss_value = 0
@@ -109,7 +112,13 @@ class Trainer(BaseTrainer):
                         loss_mask = self.criterion(pred_mask, mask)
                         loss_gender = self.criterion(pred_gender, gender)
                         loss_age = self.criterion(pred_age, age)
-                loss = loss_mask + loss_gender + loss_age
+                ################################################
+                maximum_loss = max(loss_mask.data, loss_gender.data, loss_age.data)
+                mask_weight = loss_mask.data/maximum_loss
+                gender_weight = loss_gender.data/maximum_loss
+                age_weight = loss_age.data/maximum_loss
+                loss = mask_weight*loss_mask + gender_weight*loss_gender + age_weight*loss_age
+                ################################################
                 preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
                 acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
