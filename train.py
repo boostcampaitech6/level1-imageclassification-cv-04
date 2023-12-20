@@ -16,8 +16,6 @@ from trainer import Trainer
 from utils import prepare_device
 from torch.optim.lr_scheduler import StepLR
 
-
-
 def seed_everything(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -57,6 +55,8 @@ def main(data_dir, model_dir, config):
 
     # setup data_loader instances
     train_set, valid_set = dataset.split_dataset()
+    train_sampler = dataset.make_sampler('train')
+    
     # train_loader_module = getattr(module_data_loader, config.dataloader)
     # train_data_loader = train_loader_module(dataset=train_set,
     #                                         batch_size=config.batch_size,
@@ -95,9 +95,10 @@ def main(data_dir, model_dir, config):
             dataset=train_set,
             batch_size=args.batch_size,
             num_workers=0,
-            shuffle=True,
+            shuffle=False,
             pin_memory=use_cuda,
             drop_last=True,
+            sampler= train_sampler
         )
         valid_dataloader = DataLoader(
             dataset=valid_set,
@@ -214,7 +215,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--criterion",
         type=str,
-        default="cross_entropy",
+        default="f1",
         help="criterion type (default: cross_entropy)",
     )
     parser.add_argument(
