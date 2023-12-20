@@ -36,14 +36,17 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
     val_set   = torch.utils.data.Subset(dataset,
                                         indices=valid_idx)
     
+    train_sampler = dataset.make_sampler('train')
+    
     # 추출된 Train Subset으로 DataLoader 생성
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=batch_size,
         num_workers=num_workers,
         drop_last=True,
-        shuffle=True,
+        shuffle=False,                          # use weighted sampler
         pin_memory=torch.cuda.is_available(),
+        sampler=train_sampler,                  # use weighted sampler
     )
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
@@ -67,15 +70,18 @@ def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers,
     val_set   = torch.utils.data.Subset(dataset,
                                         indices=valid_idx)
     
+    train_sampler = dataset.make_sampler('train')
+    
     # 추출된 Train Subset으로 DataLoader 생성
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=batch_size,
         num_workers=num_workers,
         drop_last=True,
-        shuffle=True,
+        shuffle=False,                              # use weighted sampler
         pin_memory=torch.cuda.is_available(),
-        collate_fn=CutMixCollator(1.0, cutmix)
+        collate_fn=CutMixCollator(1.0, cutmix),
+        sampler=train_sampler,                      # use weighted sampler
     )
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
@@ -136,16 +142,18 @@ def main(data_dir, model_dir, config):
 
         # setup data_loader instances
         train_set, valid_set = dataset.split_dataset()
+        train_sampler = dataset.make_sampler('train')
 
         if config.augmentation == "CutmixAugmentation":
             train_dataloader = DataLoader(
                 dataset=train_set,
                 batch_size=args.batch_size,
                 num_workers=0,
-                shuffle=True,
+                shuffle=False,              # use weighted sampler
                 pin_memory=use_cuda,
                 drop_last=True,
-                collate_fn=CutMixCollator(1.0, config.cutmix)
+                collate_fn=CutMixCollator(1.0, config.cutmix),
+                sampler= train_sampler      # use weighted sampler
             )
             valid_dataloader = DataLoader(
                 dataset=valid_set,
@@ -160,9 +168,10 @@ def main(data_dir, model_dir, config):
                 dataset=train_set,
                 batch_size=args.batch_size,
                 num_workers=0,
-                shuffle=True,
+                shuffle=False,              # use weighted sampler
                 pin_memory=use_cuda,
                 drop_last=True,
+                sampler= train_sampler      # use weighted sampler
             )
             valid_dataloader = DataLoader(
                 dataset=valid_set,
