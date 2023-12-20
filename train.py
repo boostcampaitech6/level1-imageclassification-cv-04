@@ -266,7 +266,7 @@ def main(data_dir, model_dir, config):
             if config.scheduler == "StepLR":
                 lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
             elif config.scheduler == "ReduceLROnPlateau":
-                lr_scheduler = ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+                lr_scheduler = ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True, mode='max')
             # elif config.scheduler == 'CosineAnnealingWarmRestarts':
             #     lr_scheduler = CosineAnnealingWarmRestarts(optimizer)
             
