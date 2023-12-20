@@ -194,6 +194,9 @@ def main(data_dir, model_dir, config):
         skf = StratifiedKFold(n_splits=n_splits)
         
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
+
+            if i > 2: continue
+
             print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
             wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
             wandb.run.name = f'{config.wandb}_fold{i}'
@@ -334,6 +337,12 @@ if __name__ == '__main__':
         type=int,
         default=20,
         help="learning rate scheduler deacy step (default: 20)",
+    )
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=5,
+        help="ReduceOnLRPlateau feature. Number of epochs with no improvement after which learning rate will be reduced (default: 5)",
     )
     parser.add_argument(
         "--log_interval",
