@@ -124,16 +124,16 @@ def main(data_dir, model_dir, config):
             dataset.mask_labels, dataset.gender_labels, dataset.age_labels
         )
     ]
-
-    # wandb initialize
-    wandb.init(project="level1-imageclassification-cv-04")
-    wandb.run.save()
-    wandb.config.update(config)
-
-    # wandb 실행 이름 설정
-    wandb.run.name = config.wandb
     
     if config.kfold == 0:
+        # wandb initialize
+        wandb.init(project="level1-imageclassification-cv-04")
+        wandb.run.save()
+        wandb.config.update(config)
+
+        # wandb 실행 이름 설정
+        wandb.run.name = config.wandb
+        
         # setup data_loader instances
         train_set, valid_set = dataset.split_dataset()
 
