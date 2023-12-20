@@ -7,12 +7,13 @@ from tqdm import tqdm
 import data_loader.data_loaders as module_data
 import model.loss as module_loss
 import model.metric as module_metric
-import model.model as module_arch
+# import model.model as module_arch
+import tiny_vit as module_arch
 
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from torchvision.transforms import Resize, ToTensor, Normalize
+from torchvision.transforms import Resize, ToTensor, Normalize, CenterCrop
 
 def decode_pred(mask,gender,age):
     mask_dict = { 0:"MASK", 1:"INCORRECT", 2:"NORMAL"}
@@ -48,6 +49,7 @@ def main(config):
 
     # Test Dataset 클래스 객체를 생성하고 DataLoader를 만듭니다.
     transform = transforms.Compose([
+        CenterCrop((360,360)),
         Resize(config.resize, Image.BILINEAR),
         ToTensor(),
         Normalize(mean=(0.548, 0.504, 0.497), std=(0.237, 0.247, 0.246))
@@ -62,7 +64,11 @@ def main(config):
 
     # 모델을 정의합니다. (학습한 모델이 있다면 torch.load로 모델을 불러주세요!)
     model_module = getattr(module_arch, config.model)
-    model = model_module(num_classes=18).to(device)
+    model = model_module(
+            num_classes_mask=3,
+            num_classes_gender=2,
+            num_classes_age=3
+        ).to(device)
     model.load_state_dict(torch.load(config.model_path, map_location=device))
     model.eval()
 
@@ -107,18 +113,18 @@ def main(config):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='PyTorch Template')
     parser.add_argument(
-        "--model", type=str, default="EfficientNetB0MultiHead", help="model type (default: EfficientNetB0MultiHead)"
+        "--model", type=str, default="Multi3HeadTinyViT", help="model type (default: EfficientNetB0MultiHead)"
     )
     parser.add_argument(
         "--test_dir",
         type=str,
-        default=os.environ.get("SM_CAHNNEL_EVAL", "/data/ephemeral/maskdata/eval")
+        default=os.environ.get("SM_CAHNNEL_EVAL", "/data/ephemeral/home/metadata/eval")
     )
     parser.add_argument(
         "--resize",
         nargs=2,
         type=int,
-        default=[128, 96],
+        default=[224, 224],
         help="resize size for image when training",
     )
     parser.add_argument(
@@ -130,13 +136,13 @@ if __name__ == '__main__':
     parser.add_argument(
         "--model_path",
         type=str,
-        default="/data/ephemeral/home/model/exp/best.pth",
+        default="/data/ephemeral/home/level1-imageclassification-cv-04/v3/K-Fold10/fold2/best.pth",
         help="사용할 모델의 weight 경로를 입력해주세요 (예: /data/ephemeral/home/model/exp/best.pth)"
     )
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=100,
+        default=1000,
         help="input batch size for validing (default: 1000)",
     )
     args = parser.parse_args()
