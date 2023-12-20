@@ -30,7 +30,7 @@ def seed_everything(seed):
     random.seed(seed)
     
     
-def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
+def getDataloader(dataset, train_idx, valid_idx, batch_size, valid_batch_size, num_workers):
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset, indices=train_idx)
     # 인자로 전달받은 dataset에서 valid_idx에 해당하는 Subset 추출
@@ -53,7 +53,7 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
         val_set,
-        batch_size=batch_size,
+        batch_size=valid_batch_size,
         num_workers=num_workers,
         drop_last=True,
         shuffle=False,
@@ -64,7 +64,7 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
     return train_loader, val_loader
 
 
-def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers, cutmix):
+def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, valid_batch_size, num_workers, cutmix):
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset, indices=train_idx)
     # 인자로 전달받은 dataset에서 valid_idx에 해당하는 Subset 추출
@@ -88,7 +88,7 @@ def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers,
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
         val_set,
-        batch_size=batch_size,
+        batch_size=valid_batch_size,
         num_workers=num_workers,
         drop_last=True,
         shuffle=False,
@@ -206,7 +206,7 @@ def main(data_dir, model_dir, config):
         if config.scheduler == "StepLR":
             lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
         elif config.scheduler == "ReduceLROnPlateau":
-            lr_scheduler = ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+            lr_scheduler = ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True, mode='max')
         # elif config.scheduler == 'CosineAnnealingWarmRestarts':
         #     lr_scheduler = CosineAnnealingWarmRestarts(optimizer)
         
@@ -229,7 +229,7 @@ def main(data_dir, model_dir, config):
         
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
 
-            if i > 2: continue
+            if i != 1 and i != 2: continue
 
             print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
             wandb.init(project="level1-imageclassification-cv-04", entity='level1-cv-04',  config=config, reinit=True)
@@ -240,11 +240,11 @@ def main(data_dir, model_dir, config):
             
             if config.augmentation == "CutmixAugmentation":
                 train_dataloader, valid_dataloader = getDataloader_cutmix(
-                    dataset, train_idx, valid_idx, config.batch_size, num_workers, config.cutmix
+                    dataset, train_idx, valid_idx, config.batch_size, config.valid_batch_size, num_workers, config.cutmix
                 )
             else:
                 train_dataloader, valid_dataloader = getDataloader(
-                    dataset, train_idx, valid_idx, config.valid_batch_size, num_workers
+                    dataset, train_idx, valid_idx, config.batch_size, config.valid_batch_size, num_workers
                 )
                 
             # build model architecture, then print to console
@@ -370,6 +370,12 @@ if __name__ == '__main__':
         type=int,
         default=20,
         help="learning rate scheduler deacy step (default: 20)",
+    )
+    parser.add_argument(
+        "--lr_decay_rate",
+        type=float,
+        default=0.5,
+        help="learning rate scheduler deacy rate = gamma (default: 0.5)",
     )
     parser.add_argument(
         "--patience",
