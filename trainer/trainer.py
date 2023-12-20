@@ -13,8 +13,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 from base.base_trainer import BaseTrainer
 import data_loader.data_sets as datasets
+from model.arcface_metrics import *
+from data_loader.cutmix import CutMixCriterion
 
-from sklearn.model_selection import StratifiedKFold
 
 class Trainer(BaseTrainer):
     def __init__(self, model, criterion, optimizer, config, 
