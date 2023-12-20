@@ -261,6 +261,7 @@ class Trainer(BaseTrainer):
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
+            torch.save(self.optimizer.state_dict(), f"{self.save_dir}/last_optimizer.pth")
             print(
                 f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
                 f"best acc : {self.best_val_acc:4.2%}, best loss: {self.best_val_loss:4.2}"
