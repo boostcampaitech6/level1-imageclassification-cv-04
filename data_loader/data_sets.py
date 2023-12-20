@@ -7,7 +7,7 @@ from typing import Tuple, List
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import Dataset, Subset, random_split
+from torch.utils.data import Dataset, Subset, random_split, WeightedRandomSampler
 from base.base_data_set import MaskBaseDataset, GenderLabels, AgeLabels, MaskLabels
 
 
@@ -85,6 +85,14 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
 
                     self.indices[phase].append(cnt)
                     cnt += 1
+
+    def make_sampler(self, phase) :
+        total_label = [self.encode_multi_class(self.mask_labels[idx], self.gender_labels[idx], self.age_labels[idx])for idx in self.indices[phase]]
+        class_sample_count = np.array([len(np.where(total_label == t)[0]) for t in np.unique(total_label)])	
+        weight = 1. / class_sample_count								  
+        samples_weight = torch.DoubleTensor(torch.from_numpy(np.array([weight[t] for t in total_label])))
+        phase_sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
+        return phase_sampler
 
     def split_dataset(self) -> List[Subset]:
         """프로필 기준으로 나눈 데이터셋을 Subset 리스트로 반환하는 메서드"""
