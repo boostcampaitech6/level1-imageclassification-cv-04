@@ -33,7 +33,9 @@ class Trainer(BaseTrainer):
         self.best_val_acc = 0
         self.best_val_loss = np.inf
         
-        self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
+        # self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
+        self.save_dir = self.increment_path(os.path.join(self.config.model_dir, wandb.run.name))
+        
         # logging with tensorboard
         self.logger = SummaryWriter(log_dir=self.save_dir)
         with open(os.path.join(self.save_dir, "config.json"), "w", encoding="utf-8") as f:
