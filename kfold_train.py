@@ -97,7 +97,7 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers, config
     val_set   = torch.utils.data.Subset(dataset,
                                         indices=valid_idx)
     
-    train_sampler = dataset.make_sampler('train')
+    # train_sampler = dataset.make_sampler('train')
     
     # 추출된 Train Subset으로 DataLoader 생성
     train_loader = torch.utils.data.DataLoader(
@@ -105,9 +105,9 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers, config
         batch_size=config.batch_size,
         num_workers=num_workers,
         drop_last=True,
-        shuffle=False,                          # use weighted sampler
+        shuffle=True,              # use weighted sampler -> shuffle=False
         pin_memory=torch.cuda.is_available(),
-        sampler=train_sampler,                  # use weighted sampler
+        # sampler=train_sampler      # use weighted sampler
     )
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
@@ -170,7 +170,8 @@ def main(data_dir, model_dir, config):
     dataset = dataset_module(
         data_dir=data_dir,
         multi_head=config.multi_head,
-        use_caution=config.use_caution_data
+        use_caution=config.use_caution_data,
+        val_ratio=config.val_ratio
     )
     num_classes = dataset.num_classes
     dataset_mean = dataset.mean
@@ -203,18 +204,18 @@ def main(data_dir, model_dir, config):
 
         # setup data_loader instances
         train_set, valid_set = dataset.split_dataset()
-        train_sampler = dataset.make_sampler('train')
+        # train_sampler = dataset.make_sampler('train')
 
         if config.augmentation == "CutmixAugmentation":
             train_dataloader = DataLoader(
                 dataset=train_set,
                 batch_size=config.batch_size,
                 num_workers=0,
-                shuffle=False,              # use weighted sampler
+                shuffle=True,              # use weighted sampler
                 pin_memory=use_cuda,
                 drop_last=True,
                 collate_fn=CutMixCollator(1.0, config.cutmix),
-                sampler= train_sampler      # use weighted sampler
+                # sampler= train_sampler      # use weighted sampler
             )
             valid_dataloader = DataLoader(
                 dataset=valid_set,
@@ -229,16 +230,16 @@ def main(data_dir, model_dir, config):
                 dataset=train_set,
                 batch_size=config.batch_size,
                 num_workers=0,
-                shuffle=False,              # use weighted sampler
+                shuffle=True,              # use weighted sampler -> shuffle=False
                 pin_memory=use_cuda,
                 drop_last=True,
-                sampler= train_sampler      # use weighted sampler
+                # sampler=train_sampler      # use weighted sampler
             )
             valid_dataloader = DataLoader(
                 dataset=valid_set,
                 batch_size=config.valid_batch_size,
                 num_workers=0,
-                shuffle=False,
+                shuffle=True,
                 pin_memory=use_cuda,
                 drop_last=True,
             )
@@ -283,16 +284,20 @@ def main(data_dir, model_dir, config):
 
     elif config.kfold == 1:
         # 5-fold Stratified KFold 5개의 fold를 형성하고 5번 Cross Validation을 진행합니다.
-        n_splits = 5
+        # k=5 일 때, valid_batch_size=90, k=10 일 때, valid_batch_size=45
+        n_splits = 10
         skf = StratifiedKFold(n_splits=n_splits)
 
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
             print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
             wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
             wandb.run.name = f'{config.wandb}_fold{i}'
-
+            
+            # k-fold 쓸 때는 필요 없음
+            # ------------------------------------------
             # -- data_loader
-            train_set, val_set = dataset.split_dataset()
+            # train_set, val_set = dataset.split_dataset()
+            # ------------------------------------------
             batch_size = config.batch_size
             num_workers = 0
 

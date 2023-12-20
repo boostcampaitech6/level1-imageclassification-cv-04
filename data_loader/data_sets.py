@@ -47,7 +47,7 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
     def setup(self):
         """데이터셋 설정을 하는 메서드. 프로필 기준으로 나눈다."""
         profiles = os.listdir(self.data_dir)
-        profiles = [profile for profile in profiles if not profile.startswith(".")][::2]
+        profiles = [profile for profile in profiles if not profile.startswith(".")]
         split_profiles = self._split_profile(profiles, self.val_ratio)
 
         cnt = 0
@@ -86,13 +86,13 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
                     self.indices[phase].append(cnt)
                     cnt += 1
 
-    def make_sampler(self, phase):
-        total_label = [self.encode_multi_class(self.mask_labels[idx], self.gender_labels[idx], self.age_labels[idx])for idx in self.indices[phase]]
-        class_sample_count = np.array([len(np.where(total_label == t)[0]) for t in np.unique(total_label)])	
-        weight = 1. / class_sample_count								  
-        samples_weight = torch.DoubleTensor(torch.from_numpy(np.array([weight[t] for t in total_label])))
-        phase_sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
-        return phase_sampler
+    # def make_sampler(self, phase):
+    #     total_label = [self.encode_multi_class(self.mask_labels[idx], self.gender_labels[idx], self.age_labels[idx])for idx in self.indices[phase]]
+    #     class_sample_count = np.array([len(np.where(total_label == t)[0]) for t in np.unique(total_label)])	
+    #     weight = 1. / class_sample_count								  
+    #     samples_weight = torch.DoubleTensor(torch.from_numpy(np.array([weight[t] for t in total_label])))
+    #     phase_sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
+    #     return phase_sampler
     
     
     def split_dataset(self) -> List[Subset]:
