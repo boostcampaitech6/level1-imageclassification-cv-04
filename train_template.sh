@@ -1,7 +1,21 @@
+# 사용 방법
+# 각 head를 학습시키려면,
+#       --target age / gender / mask 를 사용합니다.
+#       MODEL="CLIP3Head3Proj"
+#       EPOCH=10
+#       LR=0.001
+#       DECAY_STEP=5
+# Aggregation 모델을 학습시키려면,
+#       --target 인자를 제거합니다. 그냥 쓰지 말아요.
+#       MODEL="CLIP3Head3Proj_Aggregation"
+#       EPOCH=30
+#       LR=0.0001
+#       DECAY_STEP=10
+
 # ${변수} 정의
 NAME="test" # test / exp
-WANDB="test_CLIP3Head3Proj_Aggregation_CustomAug_Plateau_KFold_WeightedSampling_LowLR"
-EPOCH=30
+WANDB="test_CLIP3Head3Proj_Aggregation_CustomAug_Plateau_KFold_WeightedSampling"
+EPOCH=10
 BATCH=512    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
@@ -9,7 +23,7 @@ MODEL="CLIP3Head3Proj_Aggregation"
 # TODO: 2. model training
 MODEL_ARCH=1
 AUG="CustomAugmentation"
-LR=0.0001
+LR=0.001
 SCHEDULER=ReduceLROnPlateau
 KFOLD=1
 LOSS="f1"
@@ -43,6 +57,7 @@ python train.py \
 --cutmix 0 \
 --patience 5 \
 --resize 224 224   # For CLIP model
+
 
 
 # --valid_batch_size 100 \
