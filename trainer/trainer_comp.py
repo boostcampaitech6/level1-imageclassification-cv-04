@@ -16,6 +16,9 @@ from data_loader.cutmix import CutMixCriterion
 
 
 class Trainer(BaseTrainer):
+    """
+    Trainer class
+    """
     def __init__(self, model, criterion, optimizer, config, 
                  device=None, train_dataloader=None, valid_dataloader=None, 
                  dataset_mean=None, dataset_std=None, lr_scheduler=None):
