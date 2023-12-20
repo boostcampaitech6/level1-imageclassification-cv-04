@@ -18,7 +18,6 @@ from torch.optim.lr_scheduler import StepLR
 import wandb
 from sklearn.model_selection import StratifiedKFold
 
-
 def seed_everything(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -340,7 +339,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--criterion",
         type=str,
-        default="cross_entropy",
+        default="f1",
         help="criterion type (default: cross_entropy)",
     )
     parser.add_argument(
