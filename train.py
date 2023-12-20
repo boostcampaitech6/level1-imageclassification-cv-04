@@ -202,7 +202,7 @@ def main(data_dir, model_dir, config):
         if config.scheduler == "StepLR":
             lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
         elif config.scheduler == "ReduceLROnPlateau":
-            lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+            lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=config.patience, min_lr=1e-6, verbose=True) # val_acc max
 
         trainer = Trainer(model, criterion, optimizer,
                         config=config,
@@ -259,7 +259,7 @@ def main(data_dir, model_dir, config):
             if config.scheduler == "StepLR":
                 lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
             elif config.scheduler == "ReduceLROnPlateau":
-                lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+                lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=config.patience, min_lr=1e-6, verbose=True) # val_acc max
 
             trainer = Trainer(model, criterion, optimizer,
                             config=config,
