@@ -145,7 +145,7 @@ def main(data_dir, model_dir, config):
         # setup data_loader instances
         train_set, valid_set = dataset.split_dataset()
         print("train dataset's size is", len(train_set))
-        print("valid dataset's size is", len(val_set))
+        print("valid dataset's size is", len(valid_set))
         
         train_sampler = dataset.make_sampler('train')
 

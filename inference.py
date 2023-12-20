@@ -12,7 +12,7 @@ import model.model as module_arch
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from torchvision.transforms import Resize, ToTensor, Normalize
+from torchvision.transforms import Resize, ToTensor, Normalize, CenterCrop
 
 
 class TestDataset(Dataset):
@@ -41,6 +41,7 @@ def main(config):
 
     # Test Dataset 클래스 객체를 생성하고 DataLoader를 만듭니다.
     transform = transforms.Compose([
+        CenterCrop((320, 256)),
         Resize(config.resize, Image.BILINEAR),
         ToTensor(),
         Normalize(mean=(0.548, 0.504, 0.497), std=(0.237, 0.247, 0.246))

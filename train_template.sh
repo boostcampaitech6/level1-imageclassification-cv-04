@@ -41,6 +41,7 @@ python train.py \
 --scheduler ${SCHEDULER} \
 --kfold ${KFOLD} \
 --cutmix 0 \
+--patience 5 \
 --resize 224 224   # For CLIP model
 
 

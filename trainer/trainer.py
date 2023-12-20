@@ -60,7 +60,7 @@ class Trainer(BaseTrainer):
             matches = [re.search(rf"%s(\d+)" % path.stem, d) for d in dirs]
             i = [int(m.groups()[0]) for m in matches if m]
             n = max(i) + 1 if i else 2
-            return f"{path}{n}"
+            return f"{path}_{n}"
 
     def get_lr(self, optimizer):
         for param_group in optimizer.param_groups:
