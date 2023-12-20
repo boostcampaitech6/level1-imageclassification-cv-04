@@ -1,0 +1,33 @@
+{
+    "seed": 42,
+    "epochs": 30,
+    "dataset": "MaskSplitByProfileDataset",
+    "augmentation": "CustomAugmentation",
+    "resize": [
+        224,
+        224
+    ],
+    "batch_size": 256,
+    "valid_batch_size": 1000,
+    "num_classes": 18,
+    "num_classes_mask": 3,
+    "num_classes_gender": 2,
+    "num_classes_age": 3,
+    "model": "Multi3HeadTinyViT",
+    "optimizer": "Adam",
+    "lr": 0.001,
+    "val_ratio": 0.2,
+    "criterion": "f1",
+    "criterion_mask": "f1",
+    "criterion_age": "f1",
+    "criterion_gender": "f1",
+    "cutmix": 0,
+    "lr_decay_step": 5,
+    "log_interval": 20,
+    "name": "K-Fold",
+    "multi_head": true,
+    "use_caution_data": true,
+    "data_dir": "/data/ephemeral/home/metadata/train/images",
+    "wandb": null,
+    "model_dir": "/data/ephemeral/home/level1-imageclassification-cv-04/v3"
+}
