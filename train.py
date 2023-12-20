@@ -133,7 +133,7 @@ def main(data_dir, model_dir, config):
     
     if config.kfold == 0:
         # wandb initialize
-        wandb.init(project="level1-imageclassification-cv-04")
+        wandb.init(project="level1-imageclassification-cv-04", entity='level1-cv-04')
         wandb.run.save()
         wandb.config.update(config)
 
@@ -187,6 +187,40 @@ def main(data_dir, model_dir, config):
                 drop_last=True,
             )
         
+        # build model architecture, then print to console
+        model_module = getattr(module_arch, config.model)
+        model = model_module(num_classes=num_classes).to(device)
+        model = torch.nn.DataParallel(model)
+
+        # get function handles of loss and metrics
+        criterion = module_loss.create_criterion(config.criterion)
+
+        # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
+        trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+        optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
+        optimizer = optimizer_module(
+            trainable_params,
+            lr=config.lr,
+            eps=1e-6,   # NOTE: For CLIP model
+        )
+        if config.scheduler == "StepLR":
+            lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+        elif config.scheduler == "ReduceLROnPlateau":
+            lr_scheduler = ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+        # elif config.scheduler == 'CosineAnnealingWarmRestarts':
+        #     lr_scheduler = CosineAnnealingWarmRestarts(optimizer)
+        
+        trainer = Trainer(model, criterion, optimizer,
+                        config=config,
+                        device=device,
+                        train_dataloader=train_dataloader,
+                        valid_dataloader=valid_dataloader,
+                        dataset_mean = dataset_mean,
+                        dataset_std = dataset_std,
+                        lr_scheduler=lr_scheduler)
+
+        trainer.train()
+        
     elif config.kfold == 1:
 
         # 5-fold Stratified KFold 5개의 fold를 형성하고 5번 Cross Validation을 진행합니다.
@@ -198,55 +232,54 @@ def main(data_dir, model_dir, config):
             if i > 2: continue
 
             print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
-            wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
+            wandb.init(project="level1-imageclassification-cv-04", entity='level1-cv-04',  config=config, reinit=True)
             wandb.run.name = f'{config.wandb}_fold{i}'
             
             # -- data_loader
-            batch_size = config.batch_size
             num_workers = 0
             
             if config.augmentation == "CutmixAugmentation":
                 train_dataloader, valid_dataloader = getDataloader_cutmix(
-                    dataset, train_idx, valid_idx, batch_size, num_workers, config.cutmix
+                    dataset, train_idx, valid_idx, config.batch_size, num_workers, config.cutmix
                 )
             else:
                 train_dataloader, valid_dataloader = getDataloader(
-                    dataset, train_idx, valid_idx, batch_size, num_workers
+                    dataset, train_idx, valid_idx, config.valid_batch_size, num_workers
                 )
                 
-    # build model architecture, then print to console
-    model_module = getattr(module_arch, config.model)
-    model = model_module(num_classes=num_classes).to(device)
-    model = torch.nn.DataParallel(model)
+            # build model architecture, then print to console
+            model_module = getattr(module_arch, config.model)
+            model = model_module(num_classes=num_classes).to(device)
+            model = torch.nn.DataParallel(model)
 
-    # get function handles of loss and metrics
-    criterion = module_loss.create_criterion(config.criterion)
+            # get function handles of loss and metrics
+            criterion = module_loss.create_criterion(config.criterion)
 
-    # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
-    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
-    optimizer = optimizer_module(
-        trainable_params,
-        lr=config.lr,
-        eps=1e-6,   # NOTE: For CLIP model
-    )
-    if config.scheduler == "StepLR":
-        lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
-    elif config.scheduler == "ReduceLROnPlateau":
-        lr_scheduler = ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
-    # elif config.scheduler == 'CosineAnnealingWarmRestarts':
-    #     lr_scheduler = CosineAnnealingWarmRestarts(optimizer)
-    
-    trainer = Trainer(model, criterion, optimizer,
-                    config=config,
-                    device=device,
-                    train_dataloader=train_dataloader,
-                    valid_dataloader=valid_dataloader,
-                    dataset_mean = dataset_mean,
-                    dataset_std = dataset_std,
-                    lr_scheduler=lr_scheduler)
+            # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
+            trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+            optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
+            optimizer = optimizer_module(
+                trainable_params,
+                lr=config.lr,
+                eps=1e-6,   # NOTE: For CLIP model
+            )
+            if config.scheduler == "StepLR":
+                lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=0.5)
+            elif config.scheduler == "ReduceLROnPlateau":
+                lr_scheduler = ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
+            # elif config.scheduler == 'CosineAnnealingWarmRestarts':
+            #     lr_scheduler = CosineAnnealingWarmRestarts(optimizer)
+            
+            trainer = Trainer(model, criterion, optimizer,
+                            config=config,
+                            device=device,
+                            train_dataloader=train_dataloader,
+                            valid_dataloader=valid_dataloader,
+                            dataset_mean = dataset_mean,
+                            dataset_std = dataset_std,
+                            lr_scheduler=lr_scheduler)
 
-    trainer.train()
+            trainer.train()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
