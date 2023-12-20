@@ -8,12 +8,14 @@ import json
 import wandb
 from pathlib import Path
 from torchvision.utils import make_grid
-from base.base_trainer import BaseTrainer
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
-from model.arcface_metrics import *
-from data_loader.cutmix import CutMixCriterion
 
+from base.base_trainer import BaseTrainer
+import data_loader.data_sets as datasets
+
+import model.loss as module_loss
+from sklearn.model_selection import StratifiedKFold
 
 class Trainer(BaseTrainer):
     def __init__(self, model, criterion, optimizer, config, 
@@ -29,19 +31,24 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.best_val_acc = 0
         self.best_val_loss = np.inf
-        self.valid_criterion = e
-
-        # self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
-        self.save_dir = self.increment_path(os.path.join(self.config.model_dir, wandb.run.name))
-        # logging with tensorboard
+        self.valid_loss = module_loss.F1Loss()
+        
+        # logging with config.json
+        self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
         self.logger = SummaryWriter(log_dir=self.save_dir)
         with open(os.path.join(self.save_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(vars(config), f, ensure_ascii=False, indent=4)
 
-        self.cutmix_criterion = CutMixCriterion(self.criterion)
+        # logging with wandb
+        wandb.init(project="level1-imageclassification-cv-04")
+        # wandb.init(project="expr_augmentation")
+        wandb.run.name = self.config.wandb  # 실행 이름 설정
+        wandb.run.save()
+        wandb.config.update(self.config)  # wandb에 현재 내가 학습하고 있는 모델의 Overview에 표시 됨
+        
         self.scaler = torch.cuda.amp.GradScaler()
 
-    def increment_path(self, path, exist_ok=False):
+    def increment_path(self, path, exist_ok=False):  # 중복된 이름 있으면 이름 뒤에 숫자 붙여서 구분해줌
         path = Path(path)
         if (path.exists() and exist_ok) or (not path.exists()):
             return str(path)
@@ -52,98 +59,88 @@ class Trainer(BaseTrainer):
             n = max(i) + 1 if i else 2
             return f"{path}{n}"
 
-    def get_lr(self, optimizer):
+    def get_lr(self, optimizer):  # 현재 모델이 최적화를 진행할 때 사용하는 lr 반환
         for param_group in optimizer.param_groups:
             return param_group["lr"]
 
-    
     def _train_epoch(self, epoch):
         self.model.train()
         loss_value = 0
         matches = 0
         
-        acc_mask_items = []  
-        acc_gender_items = []  
-        acc_age_items = []  
+        acc_mask_items = []
+        acc_gender_items = []
+        acc_age_items = []
 
         for idx, train_batch in enumerate(self.train_dataloader):
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
             if self.config.multi_head:
                 inputs, labels, mask, gender, age = train_batch
                 inputs = inputs.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
-                if self.config.augmentation == "CutmixAugmentation":
-                    masks = mask.copy()
-                    mask, mask2, lam = masks
-                    mask = mask.to(self.device, non_blocking=True)
-                    mask2 = mask2.to(self.device, non_blocking=True)
-                    
-                    genders = gender.copy()
-                    gender, gender2, lam = genders
-                    gender = gender.to(self.device, non_blocking=True)
-                    gender2 = gender2.to(self.device, non_blocking=True)
-
-                    ages = age.copy()
-                    age, age2, lam = ages
-                    age = age.to(self.device, non_blocking=True)
-                    age2 = age2.to(self.device, non_blocking=True)
-
-                    with torch.cuda.amp.autocast():
-                        if self.config.model == "ArcfaceMultiHead":
-                            outs = self.model(inputs, mask, gender, age)
+                mask = mask.to(self.device, non_blocking=True)
+                gender = gender.to(self.device, non_blocking=True)
+                age = age.to(self.device, non_blocking=True)
+                
+                with torch.cuda.amp.autocast():
+                    # MixUp
+                    if self.config.mixup:
+                        ALPHA = 1
+                        if ALPHA > 0:
+                            LAMBDA = np.random.beta(ALPHA, ALPHA)
                         else:
-                            outs = self.model(inputs)
+                            LAMBDA = 1
+
+                        indices = torch.randperm(self.config.batch_size)
                         
-                        pred_mask, pred_gender, pred_age = outs
-                        loss_mask = self.cutmix_criterion(pred_mask, (mask, mask2, lam))
-                        loss_gender = self.cutmix_criterion(pred_gender, (gender, gender2, lam))
-                        loss_age = self.cutmix_criterion(pred_age, (age, age2, lam))
-                else:
-                    mask = mask.to(self.device)
-                    gender = gender.to(self.device)
-                    age = age.to(self.device)
+                        mixed_input = LAMBDA * inputs + (1 - LAMBDA) * inputs[indices, :]
+                        # labels_a, labels_b = labels, labels[indices]
+                        mask_a, mask_b = mask, mask[indices]
+                        gender_a, gender_b = gender, gender[indices]
+                        age_a, age_b = age, age[indices]
 
-                    with torch.cuda.amp.autocast():
-                        if self.config.model == "ArcfaceMultiHead":
-                            outs = self.model(inputs, mask, gender, age)
-                        else:
-                            outs = self.model(inputs)
+                        outs = self.model(mixed_input)
                         pred_mask, pred_gender, pred_age = outs
+                        
+                        loss_mask = LAMBDA * self.criterion(pred_mask, mask_a) + (1 - LAMBDA) * self.criterion(pred_mask, mask_b)
+                        loss_gender = LAMBDA * self.criterion(pred_gender, gender_a) + (1 - LAMBDA) * self.criterion(pred_gender, gender_b)
+                        loss_age = LAMBDA * self.criterion(pred_age, age_a) + (1 - LAMBDA) * self.criterion(pred_age, age_b)
+                        
+                        loss = loss_mask + loss_gender + loss_age
+                    else:
+                        outs = self.model(inputs)
+                        pred_mask, pred_gender, pred_age = outs
+                        
                         loss_mask = self.criterion(pred_mask, mask)
                         loss_gender = self.criterion(pred_gender, gender)
                         loss_age = self.criterion(pred_age, age)
-                ################################################
-                maximum_loss = max(loss_mask.data, loss_gender.data, loss_age.data)
-                mask_weight = loss_mask.data/maximum_loss
-                gender_weight = loss_gender.data/maximum_loss
-                age_weight = loss_age.data/maximum_loss
-                loss = mask_weight*loss_mask + gender_weight*loss_gender + age_weight*loss_age
-                ################################################
-                preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                        
+                        loss = loss_mask + loss_gender + loss_age
+                    
+                    # 최종 분류 (0 ~ 17)
+                    preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
-                acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
-                acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
-                acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+                    # 각 task마다의 정확도
+                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
 
-                acc_mask_items.append(acc_mask)
-                acc_gender_items.append(acc_gender)
-                acc_age_items.append(acc_age)
+                    acc_mask_items.append(acc_mask)
+                    acc_gender_items.append(acc_gender)
+                    acc_age_items.append(acc_age)
+
 
             else:
-                if self.config.augmentation == "CutmixAugmentation":
-                    print("Not Implemented.")
                 inputs, labels = train_batch
                 inputs = inputs.to(self.device, non_blocking=True)
                 labels = labels.to(self.device, non_blocking=True)
-
+                
                 with torch.cuda.amp.autocast():
                     outs = self.model(inputs)
                     loss = self.criterion(outs, labels)
 
-                    preds = torch.argmax(outs, dim=-1)
+                preds = torch.argmax(outs, dim=-1)
 
-            # loss.backward()
-            # self.optimizer.step()
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
@@ -192,26 +189,8 @@ class Trainer(BaseTrainer):
                         "Train acc" : train_acc,
                     })
 
-            if self.config.augmentation == "CutmixAugmentation" and epoch == 1: # 첫번째 epoch에서만 저장하도록
-                columns_cutmix = ["image"]
-                cutmix_traindata = wandb.Table(columns=columns_cutmix)
-
-                sampled_inputs = inputs
-                sampled_inputs_np = (
-                    torch.clone(sampled_inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
-                )
-                sampled_inputs_np = self.denormalize_image(
-                    sampled_inputs_np, self.dataset_mean, self.dataset_std
-                )
-                for input in sampled_inputs_np[:20]:
-                    cutmix_traindata.add_data(wandb.Image(input))
-
-                wandb.log({f"{self.config.wandb}_cutmix_traindata": cutmix_traindata})
-
-
         if self.lr_scheduler is not None:
-            if self.config.scheduler != "ReduceLROnPlateau":
-                self.lr_scheduler.step()
+            self.lr_scheduler.step()
 
         if self.do_validation:
             self._valid_epoch(epoch)
@@ -226,7 +205,7 @@ class Trainer(BaseTrainer):
         
         self.model.eval()
         
-        with torch.no_grad():
+        with torch.inference_mode():
             print("Calculating validation results...")
             val_loss_items = []
             val_acc_items = []
@@ -245,7 +224,7 @@ class Trainer(BaseTrainer):
                 else:
                     columns = ["image", "gt", "predict"]
                     val_table = wandb.Table(columns=columns)
-            
+
             for val_batch in self.valid_dataloader:
                 if self.config.multi_head:
                     inputs, labels, mask, gender, age = val_batch
@@ -256,49 +235,23 @@ class Trainer(BaseTrainer):
                     age = age.to(self.device, non_blocking=True)
 
                     with torch.cuda.amp.autocast():
-                        if self.config.model == "ArcfaceMultiHead":
-                            outs = self.model(inputs, mask, gender, age)
-                        else:
-                            outs = self.model(inputs)
+                        outs = self.model(inputs)
                         pred_mask, pred_gender, pred_age = outs
-                        loss_mask = self.criterion(pred_mask, mask)
-                        loss_gender = self.criterion(pred_gender, gender)
-                        loss_age = self.criterion(pred_age, age)
-                    
-                    loss_item = (loss_mask + loss_gender + loss_age).item()
-                    preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
-                    
-                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
-                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
-                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
 
-                    val_acc_mask_items.append(acc_mask)
-                    val_acc_gender_items.append(acc_gender)
-                    val_acc_age_items.append(acc_age)
+                        
+                        loss_mask = self.valid_loss(pred_mask, mask)
+                        loss_gender = self.valid_loss(pred_gender, gender)
+                        loss_age = self.valid_loss(pred_age, age)
+                        loss_item = (loss_mask + loss_gender + loss_age).item()
+                        preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                        
+                        acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                        acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                        acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
 
-                    # val_table logging
-                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
-                        inputs_np = (
-                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
-                        )
-                        inputs_np = self.denormalize_image(
-                            inputs_np, self.dataset_mean, self.dataset_std
-                        )
-                        for input, m_gt, m_pt, g_gt, g_pt, a_gt, a_pt in zip(inputs_np, mask, torch.argmax(pred_mask, dim=-1), gender, torch.argmax(pred_gender, dim=-1), age, torch.argmax(pred_age, dim=-1)):
-                            if self.config.save_val_table == 2:
-                                if m_gt != m_pt or g_gt != g_pt or a_gt != a_pt:
-                                    val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-                            else:
-                                val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-                    
-
-                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
-                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
-                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
-
-                    val_acc_mask_items.append(acc_mask)
-                    val_acc_gender_items.append(acc_gender)
-                    val_acc_age_items.append(acc_age)
+                        val_acc_mask_items.append(acc_mask)
+                        val_acc_gender_items.append(acc_gender)
+                        val_acc_age_items.append(acc_age)
 
                     # val_table logging
                     if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
@@ -314,31 +267,25 @@ class Trainer(BaseTrainer):
                                     val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
                             else:
                                 val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-
                 else:
                     inputs, labels = val_batch
                     inputs = inputs.to(self.device, non_blocking=True)
                     labels = labels.to(self.device, non_blocking=True)
-
+                    
                     with torch.cuda.amp.autocast():
                         outs = self.model(inputs)
                         preds = torch.argmax(outs, dim=-1)
 
-                        loss_item = self.criterion(outs, labels).item()
-
+                        loss_item = self.valid_loss(outs, labels).item()
+                
                     # val_table logging
                     if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
                         inputs_np = (
                             torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                         )
-                        if self.config.model == "ArcfaceMultiHead":
-                            inputs_np = self.denormalize_arcface_image(
-                                inputs_np, self.dataset_mean, self.dataset_std
-                            )
-                        else:
-                            inputs_np = self.denormalize_image(
-                                inputs_np, self.dataset_mean, self.dataset_std
-                            )
+                        inputs_np = self.denormalize_image(
+                            inputs_np, self.dataset_mean, self.dataset_std
+                        )
                         for input, gt, pred in zip(inputs_np, labels, preds):
                             if self.config.save_val_table == 2:
                                 if gt != pred:
@@ -354,14 +301,9 @@ class Trainer(BaseTrainer):
                     inputs_np = (
                         torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
                     )
-                    if self.config.model == "ArcfaceMultiHead":
-                        inputs_np = self.denormalize_arcface_image(
-                            inputs_np, self.dataset_mean, self.dataset_std
-                        )
-                    else:
-                        inputs_np = self.denormalize_image(
-                            inputs_np, self.dataset_mean, self.dataset_std
-                        )
+                    inputs_np = self.denormalize_image(
+                        inputs_np, self.dataset_mean, self.dataset_std
+                    )
                     figure = self.grid_image(
                         inputs_np,
                         labels,
@@ -372,32 +314,31 @@ class Trainer(BaseTrainer):
 
             val_loss = np.sum(val_loss_items) / len(self.valid_dataloader)
             val_acc = np.sum(val_acc_items) / (len(self.valid_dataloader) * self.config.valid_batch_size)
-            self.best_val_loss = min(self.best_val_loss, val_loss)
-            if val_acc > self.best_val_acc:
-                print(
-                    f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
-                )
-                
-                torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
-            if val_acc > self.best_val_acc:
-                self.best_val_acc = val_acc
-            torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
-            if self.config.multi_head:
-                print(
-                    f"[Val] acc : {val_acc:4.2%} || mask acc : {np.mean(val_acc_mask_items):4.2%} || "
-                    f"gender acc : {np.mean(val_acc_gender_items):4.2%} || age acc : {np.mean(val_acc_age_items):4.2%} || loss: {val_loss:4.2} || "
-                    f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
-                )
-            else:
-                print(
-                    f"[Val] acc : {val_acc:4.2%} || loss: {val_loss:4.2} || "
-                    f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
-                )
-
-            # "ReduceLROnPlateau" scheduler step
-            if self.config.scheduler == "ReduceLROnPlateau":
-                self.lr_scheduler.step(val_acc) # TODO val_acc? val_loss?
             
+            if self.config.best_model == "acc":
+                if val_acc > self.best_val_acc:
+                    print(
+                        f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
+                    )
+                    torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
+                    self.best_val_acc = val_acc
+                self.best_val_loss = min(self.best_val_loss, val_loss)
+            elif self.config.best_model == "loss":
+                if val_loss < self.best_val_loss:
+                    print(
+                        f"New best model for val loss : {val_loss:4.2}! saving the best model.."
+                    )
+                    torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
+                    self.best_val_loss = val_loss
+                self.best_val_acc = max(self.best_val_acc, val_acc)
+            
+            torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
+            print(
+                f"[Val] acc : {val_acc:4.2%}, mask acc : {np.mean(val_acc_mask_items):4.2%} || "
+                f"gender acc : {np.mean(val_acc_gender_items):4.2%} || age acc : {np.mean(val_acc_age_items):4.2%} || loss: {val_loss:4.2} || "
+                f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
+            )
+
             # tensorboard: 검증 단계에서 Loss, Accuracy 로그 저장
             self.logger.add_scalar("Val/loss", val_loss, epoch)
             self.logger.add_scalar("Val/accuracy", val_acc, epoch)
@@ -421,7 +362,8 @@ class Trainer(BaseTrainer):
                     "results": wandb.Image(figure),
                 })
             if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
-                wandb.log({f"{self.config.wandb}_val_table": val_table})
+                wandb.log({f"{self.config.wandb}": val_table})
+        
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'
@@ -438,15 +380,6 @@ class Trainer(BaseTrainer):
         img_cp = image.copy()
         img_cp *= std
         img_cp += mean
-        img_cp *= 255.0
-        img_cp = np.clip(img_cp, 0, 255).astype(np.uint8)
-        return img_cp
-    
-    def denormalize_arcface_image(self, image, mean, std):
-        """정규화된 이미지를 원래대로 되돌리는 메서드"""
-        img_cp = image.copy()
-        img_cp *= 0.5
-        img_cp += 0.5
         img_cp *= 255.0
         img_cp = np.clip(img_cp, 0, 255).astype(np.uint8)
         return img_cp
