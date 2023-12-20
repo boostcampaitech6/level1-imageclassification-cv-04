@@ -71,7 +71,7 @@ def main(config):
         num_workers=0,
         shuffle=True,
         pin_memory=use_cuda,
-        drop_last=False,
+        drop_last=True,
     )
 
     # build model architecture, then print to console
