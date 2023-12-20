@@ -111,6 +111,7 @@ sweep.yaml
 sweep.out
 train.sh
 inference.sh
+inference_train.sh
 model/pretrained/
 model/checkpoint_transform.py
 k_fold_train_mj.py

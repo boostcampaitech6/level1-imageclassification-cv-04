@@ -111,6 +111,14 @@ class Trainer(BaseTrainer):
                         loss_mask = self.cutmix_criterion(pred_mask, (mask, mask2, lam))
                         loss_gender = self.cutmix_criterion(pred_gender, (gender, gender2, lam))
                         loss_age = self.cutmix_criterion(pred_age, (age, age2, lam))
+
+                        # lambda에 따라 최종 target 선택
+                        if lam >= 0.5:      # target1 선택
+                            continue
+                        else:               # target2 선택
+                            mask = mask2
+                            gender = gender2
+                            age = age2
                 else:
                     mask = mask.to(self.device)
                     gender = gender.to(self.device)
@@ -156,6 +164,8 @@ class Trainer(BaseTrainer):
             self.scaler.update()
             
             loss_value += loss.item()
+            if self.config.augmentation == "CutmixAugmentation":
+                labels = mask * 6 + gender * 3 + age            # mix된 labels 반영
             matches += (preds == labels).sum().item()
             if (idx + 1) % self.config.log_interval == 0:
                 train_loss = loss_value / self.config.log_interval
@@ -275,30 +285,6 @@ class Trainer(BaseTrainer):
                     loss_item = (loss_mask + loss_gender + loss_age).item()
                     preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
                     
-                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
-                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
-                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
-
-                    val_acc_mask_items.append(acc_mask)
-                    val_acc_gender_items.append(acc_gender)
-                    val_acc_age_items.append(acc_age)
-
-                    # val_table logging
-                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
-                        inputs_np = (
-                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
-                        )
-                        inputs_np = self.denormalize_image(
-                            inputs_np, self.dataset_mean, self.dataset_std
-                        )
-                        for input, m_gt, m_pt, g_gt, g_pt, a_gt, a_pt in zip(inputs_np, mask, torch.argmax(pred_mask, dim=-1), gender, torch.argmax(pred_gender, dim=-1), age, torch.argmax(pred_age, dim=-1)):
-                            if self.config.save_val_table == 2:
-                                if m_gt != m_pt or g_gt != g_pt or a_gt != a_pt:
-                                    val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-                            else:
-                                val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-                    
-
                     acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
                     acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
                     acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
