@@ -297,31 +297,7 @@ class Trainer(BaseTrainer):
                                     val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
                             else:
                                 val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-                    
-
-                    acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
-                    acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
-                    acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
-
-                    val_acc_mask_items.append(acc_mask)
-                    val_acc_gender_items.append(acc_gender)
-                    val_acc_age_items.append(acc_age)
-
-                    # val_table logging
-                    if self.config.save_val_table != 0 and epoch == self.config.epochs-1: # 마지막 epoch만 저장하도록
-                        inputs_np = (
-                            torch.clone(inputs).detach().cpu().permute(0, 2, 3, 1).numpy()
-                        )
-                        inputs_np = self.denormalize_image(
-                            inputs_np, self.dataset_mean, self.dataset_std
-                        )
-                        for input, m_gt, m_pt, g_gt, g_pt, a_gt, a_pt in zip(inputs_np, mask, torch.argmax(pred_mask, dim=-1), gender, torch.argmax(pred_gender, dim=-1), age, torch.argmax(pred_age, dim=-1)):
-                            if self.config.save_val_table == 2:
-                                if m_gt != m_pt or g_gt != g_pt or a_gt != a_pt:
-                                    val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-                            else:
-                                val_table.add_data(wandb.Image(input), m_gt, m_pt, g_gt, g_pt, a_gt, a_pt)
-
+                
                 else:
                     inputs, labels = val_batch
                     inputs = inputs.to(self.device)
