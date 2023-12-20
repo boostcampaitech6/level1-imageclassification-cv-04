@@ -125,15 +125,15 @@ def main(data_dir, model_dir, config):
         )
     ]
 
+    # wandb initialize
+    wandb.init(project="level1-imageclassification-cv-04")
+    wandb.run.save()
+    wandb.config.update(config)
+
+    # wandb 실행 이름 설정
+    wandb.run.name = config.wandb
+    
     if config.kfold == 0:
-        # wandb initialize
-        wandb.init(project="level1-imageclassification-cv-04")
-        wandb.run.save()
-        wandb.config.update(config)
-
-        # wandb 실행 이름 설정
-        wandb.run.name = config.wandb
-
         # setup data_loader instances
         train_set, valid_set = dataset.split_dataset()
 
@@ -179,8 +179,8 @@ def main(data_dir, model_dir, config):
         model = torch.nn.DataParallel(model)
 
         # get function handles of loss and metrics
-        if config.model == "ArcfaceMultiHead" or config.criterion == "focal":
-            criterion = module_loss.create_criterion("focal", weight=config.weight)
+        if config.criterion == "focal":
+            criterion = module_loss.create_criterion(config.criterion, weight=config.weight)
         else:
             criterion = module_loss.create_criterion(config.criterion)
 
@@ -237,9 +237,10 @@ def main(data_dir, model_dir, config):
             model = torch.nn.DataParallel(model)
 
             # get function handles of loss and metrics
-            criterion = module_loss.create_criterion(config.criterion)
-            if config.model == "ArcfaceMultiHead":
-                criterion = module_loss.create_criterion("focal")
+            if config.criterion == "focal":
+                criterion = module_loss.create_criterion(config.criterion, weight=config.weight)
+            else:
+                criterion = module_loss.create_criterion(config.criterion)
 
             # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
             trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -342,6 +343,18 @@ if __name__ == '__main__':
         type=str,
         default="f1",
         help="criterion type (default: cross_entropy)",
+    )
+    parser.add_argument(
+        "--weight",
+        type=str,
+        default="none",
+        help="weight type (default: none)",
+    )
+    parser.add_argument(
+        "--best_model",
+        type=str,
+        default="acc",
+        help="Usage: 'acc' or 'loss', best model 선정 기준을 accuracy로 할지, loss로 할지 여부"
     )
     parser.add_argument(
         "--scheduler",

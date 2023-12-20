@@ -2,8 +2,8 @@
 # resize shape
 RESIZE="224 224"
 MODEL_ARCH=1
-MODEL=SwinTransformerBase224V3
-RESULT_NAME="SwinTransformerV3_3stage"
+MODEL=SwinTransformerBase224V1
+RESULT_NAME="SwinTransformerV1_RAdam"
 TEST_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/data/eval"
 MODEL_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/results/${RESULT_NAME}/best.pth"
 

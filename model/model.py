@@ -375,6 +375,65 @@ class SwinTransformerBase224V3(BaseModel):
         age = self.age_classifier(age)  # age output = [batch, 3]
         return mask, gender, age
 
+
+class SwinTransformerBase224V4(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model("swin_base_patch4_window7_224", pretrained=True, num_classes=0)  # num_features = 1024
+        
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        ## MASK
+        self.mask_features = nn.Sequential(
+            nn.Linear(1024, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+        )
+        self.mask = nn.Linear(128, 3)
+        
+        ## GENDER
+        self.gender_features = nn.Sequential(
+            nn.Linear(128, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU()
+        )
+        self.gender = nn.Linear(128, 2)
+        
+        ## AGE
+        self.age_features = nn.Sequential(
+            nn.Linear(128, 512, bias=False),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128, bias=False),
+            nn.BatchNorm1d(128),
+            nn.ReLU()
+        )
+        self.age = nn.Linear(128, 3)
+        
+        ## CONNECTION
+        self.connection_layer = nn.Dropout(p=0.0)
+        
+    
+    def forward(self, x):
+        x = self.model(x)
+        mask_features = self.mask_features(x)
+        gender_features = self.connection_layer(mask_features)
+        mask = self.mask(mask_features)  # mask output
+        gender_features = self.gender_features(gender_features)
+        age_features = self.connection_layer(gender_features)
+        gender = self.gender(gender_features)  # gender output
+        age_features = self.age_features(age_features)
+        age = self.age(age_features)  # age output
+        
+        return mask, gender, age
+
 # Custom Model Template
 class MyModel(nn.Module):
     def __init__(self, num_classes):
