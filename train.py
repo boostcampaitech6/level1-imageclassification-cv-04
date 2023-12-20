@@ -130,6 +130,7 @@ if __name__ == '__main__':
     parser.add_argument("--lr_decay_step", type=int, default=20, help="learning rate scheduler deacy step (default: 20)",)
     parser.add_argument("--log_interval", type=int, default=20, help="how many batches to wait before logging training status",)
     parser.add_argument("--best_model", type=str, default="acc", help="Usage: 'acc' or 'loss', best model 선정 기준을 accuracy로 할지, loss로 할지 여부")
+    parser.add_argument("--early_stopping", type=int, default=5, help="k번의 epochs 동안 best acc/loss가 갱신되지 않으면 학습 종료")
     parser.add_argument("--name", default="exp", help="model save at {SM_MODEL_DIR}/{name}")
     parser.add_argument("--wandb", default="model_EfficientNetB0",
                         help="wandb run name. 실험 대상이 되는 \"arg종류_arg값\" 형태로 적어주세요 (예: model_EfficientNetB4).")

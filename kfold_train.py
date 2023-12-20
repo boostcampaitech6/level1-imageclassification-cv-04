@@ -311,9 +311,12 @@ def main(data_dir, model_dir, config):
             model = torch.nn.DataParallel(model)
 
             # get function handles of loss and metrics
-            criterion = module_loss.create_criterion(config.criterion)
             if config.model == "ArcfaceMultiHead":
                 criterion = module_loss.create_criterion("focal")
+            elif config.criterion == "focal":
+                criterion = module_loss.create_criterion(config.criterion, weight=config.weight)
+            else:
+                criterion = module_loss.create_criterion(config.criterion)
 
             # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
             trainable_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -476,7 +479,9 @@ if __name__ == '__main__':
         help="성별 판별이 어려운 데이터(EDA-오류처럼 보이는 데이터) 사용 여부"
     )
     parser.add_argument("--weight", type=str, default="none", help="weight type (default: none)",)
-
+    parser.add_argument("--early_stopping", type=int, default=5, help="k번의 epochs 동안 best acc/loss가 갱신되지 않으면 학습 종료")
+    parser.add_argument("--best_model", type=str, default="acc", help="Usage: 'acc' or 'loss', best model 선정 기준을 accuracy로 할지, loss로 할지 여부")
+    
     # Container environment
     parser.add_argument(
         "--data_dir",
