@@ -241,24 +241,11 @@ class CLIP3Head3Proj(nn.Module):
             'a photo of an woman.',
         ]
         age_captions = [
-            # 'a photo of a young person',
-            # 'a photo of a middle-aged person.',
-            # 'A photo of an elderly person over 60 years old.',
-            # 'a photo of a young person under 30.',
-            # 'a photo of a middle-aged person aged between 30 and 60.',
-            # 'a photo of an elderly person over 60 years old.',
             'the young person looks like under 30 years old.',
             'a photo of a middle-aged person.',
             'A photo of an elderly person over 60 years old.',
         ]
         
-        # NOTE: 일반적으로 잘 학습이 되지 않기 때문에 guide를 제공합니다. 
-        #       절반의 학습 데이터에서는 학습이 진행되나 전체로 확장할 경우 학습이 진행되지 않았음.
-        #       =12.20=> prompt tuning으로 해결하였습니다.
-        # age_model = torch.load('/data/ephemeral/home/output/head_age_ep10_tanos/best.pth')
-        # self.age_i.load_state_dict({k[6:]:v for k,v in age_model.items() if k.startswith('age_i')})
-        # self.age_t.load_state_dict({k[6:]:v for k,v in age_model.items() if k.startswith('age_t')})
-
         mask_captions = clip.tokenize([text for text in mask_captions]).to(self.device)
         gender_captions = clip.tokenize([text for text in gender_captions]).to(self.device)
         age_captions = clip.tokenize([text for text in age_captions]).to(self.device)
@@ -300,9 +287,9 @@ class CLIP3Head3Proj_Aggregation(CLIP3Head3Proj):   # 상속, Thanks to 현지 �
         
         print("loading pretrained models...", end=' ')
         
-        age_model = torch.load('/data/ephemeral/home/output/lastpang/best.pth')
-        gender_model = torch.load('/data/ephemeral/home/output/lastpang2/best.pth')
-        mask_model = torch.load('/data/ephemeral/home/output/lastpang3/best.pth')
+        age_model = torch.load('/data/ephemeral/home/output/test-age-stable-ep15/best.pth')
+        gender_model = torch.load('/data/ephemeral/home/output/lastpang2-gender/best.pth')
+        mask_model = torch.load('/data/ephemeral/home/output/lastpang3-mask/best.pth')
 
         self.age_i.load_state_dict({k[6:]:v for k,v in age_model.items() if k.startswith('age_i')})
         self.age_t.load_state_dict({k[6:]:v for k,v in age_model.items() if k.startswith('age_t')})

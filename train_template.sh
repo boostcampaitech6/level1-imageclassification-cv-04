@@ -1,11 +1,11 @@
 # ${변수} 정의
 NAME="test" # test / exp
-WANDB="test_CLIP3Head3Proj_age_prompt_tuning"
-EPOCH=15
+WANDB="test_CLIP3Head3Proj_age_fine_tuning"
+EPOCH=10
 BATCH=512    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
-MODEL="CLIP3Head3Proj"
+MODEL="CLIP3Head3Proj_Aggregation"
 # TODO: 2. model training
 MODEL_ARCH=1
 AUG="BaseAugmentation"
@@ -34,7 +34,7 @@ python train.py \
 --data_dir "${DATA_DIR}/train/images/" \
 --model_dir "${OUTPUT_DIR}" \
 --val_ratio 0.1 \
---lr 0.001 \
+--lr 0.000125 \
 --target age \
 --resize 224 224   # For CLIP model
 
