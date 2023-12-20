@@ -1,8 +1,8 @@
 # ${변수} 정의
 NAME="test" # test / exp
 WANDB="test_CLIP3Head3Proj_age_prompt_tuning"
-EPOCH=10
-BATCH=256    # 경향을 파악하는건 64가 나은 듯
+EPOCH=15
+BATCH=512    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
 MODEL="CLIP3Head3Proj"

@@ -15,7 +15,7 @@ OUTPUT_DIR="/data/ephemeral/home/output"
 
 
 for HEAD in age gender mask
-do 
+do
     WANDB=model_CLIP3Head3Proj_${HEAD}        # "model_A"
     # run with args
     python train.py \
@@ -35,6 +35,7 @@ do
     --model_dir "${OUTPUT_DIR}" \
     --target ${HEAD} \
     --lr ${LR} \
-    --resize 224 224 &&
-done 
+    --resize 224 224
+done
 
+echo "headers prepared!"
