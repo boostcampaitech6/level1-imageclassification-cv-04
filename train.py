@@ -28,7 +28,7 @@ def seed_everything(seed):
     random.seed(seed)
 
 
-def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
+def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers, config):
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset,
                                         indices=train_idx)
@@ -41,7 +41,7 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
     # 추출된 Train Subset으로 DataLoader 생성
     train_loader = torch.utils.data.DataLoader(
         train_set,
-        batch_size=batch_size,
+        batch_size=config.batch_size,
         num_workers=num_workers,
         drop_last=True,
         shuffle=False,                          # use weighted sampler
@@ -51,7 +51,7 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
         val_set,
-        batch_size=batch_size,
+        batch_size=config.valid_batch_size,
         num_workers=num_workers,
         drop_last=True,
         shuffle=False,
@@ -62,7 +62,7 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers):
     return train_loader, val_loader
 
 
-def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers, cutmix):
+def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers, config):
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset,
                                         indices=train_idx)
@@ -75,18 +75,18 @@ def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers,
     # 추출된 Train Subset으로 DataLoader 생성
     train_loader = torch.utils.data.DataLoader(
         train_set,
-        batch_size=batch_size,
+        batch_size=config.batch_size,
         num_workers=num_workers,
         drop_last=True,
         shuffle=False,                              # use weighted sampler
         pin_memory=torch.cuda.is_available(),
-        collate_fn=CutMixCollator(1.0, cutmix),
+        collate_fn=CutMixCollator(1.0, config.cutmix),
         sampler=train_sampler,                      # use weighted sampler
     )
     # 추출된 Valid Subset으로 DataLoader 생성
     val_loader = torch.utils.data.DataLoader(
         val_set,
-        batch_size=batch_size,
+        batch_size=config.valid_batch_size,
         num_workers=num_workers,
         drop_last=True,
         shuffle=False,
@@ -147,7 +147,7 @@ def main(data_dir, model_dir, config):
         if config.augmentation == "CutmixAugmentation":
             train_dataloader = DataLoader(
                 dataset=train_set,
-                batch_size=args.batch_size,
+                batch_size=config.batch_size,
                 num_workers=0,
                 shuffle=False,              # use weighted sampler
                 pin_memory=use_cuda,
@@ -157,7 +157,7 @@ def main(data_dir, model_dir, config):
             )
             valid_dataloader = DataLoader(
                 dataset=valid_set,
-                batch_size=args.valid_batch_size,
+                batch_size=config.valid_batch_size,
                 num_workers=0,
                 shuffle=False,
                 pin_memory=use_cuda,
@@ -166,7 +166,7 @@ def main(data_dir, model_dir, config):
         else:
             train_dataloader = DataLoader(
                 dataset=train_set,
-                batch_size=args.batch_size,
+                batch_size=config.batch_size,
                 num_workers=0,
                 shuffle=False,              # use weighted sampler
                 pin_memory=use_cuda,
@@ -175,7 +175,7 @@ def main(data_dir, model_dir, config):
             )
             valid_dataloader = DataLoader(
                 dataset=valid_set,
-                batch_size=args.valid_batch_size,
+                batch_size=config.valid_batch_size,
                 num_workers=0,
                 shuffle=False,
                 pin_memory=use_cuda,
@@ -200,7 +200,7 @@ def main(data_dir, model_dir, config):
             lr=config.lr,
         )
         if config.scheduler == "StepLR":
-            lr_scheduler = StepLR(optimizer, args.lr_decay_step, gamma=args.lr_decay_rate)
+            lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
         elif config.scheduler == "ReduceLROnPlateau":
             lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
 
@@ -232,11 +232,11 @@ def main(data_dir, model_dir, config):
 
             if config.augmentation == "CutmixAugmentation":
                 train_dataloader, valid_dataloader = getDataloader_cutmix(
-                    dataset, train_idx, valid_idx, batch_size, num_workers, config.cutmix
+                    dataset, train_idx, valid_idx, batch_size, num_workers, config
                 )
             else:
                 train_dataloader, valid_dataloader = getDataloader(
-                    dataset, train_idx, valid_idx, batch_size, num_workers
+                    dataset, train_idx, valid_idx, batch_size, num_workers, config
                 )
 
             # build model architecture, then print to console
