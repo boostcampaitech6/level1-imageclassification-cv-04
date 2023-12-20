@@ -235,12 +235,12 @@ class CLIP3Head3Proj(nn.Module):
             # 'A person correctly wearing a mask, covering mouth and nose completely.',
             # 'A photo of a person wearing a mask incorrectly, with the mouth and nose not properly covered or the eyes covered by the mask, and possibly wearing a scarf.',
             # 'A photo of a person without mask.',
-            'A person correctly wearing a mask or scarf, covering mouth and nose completely.',
-            'A photo of a person wearing a mask incorrectly, with the mouth and nose not properly covered or the eyes covered by the mask.',
-            'A photo of a person without mask.',
-            # 'A person correctly wearing a mask, covering mouth and nose completely, and possibly wearing a scarf.',
+            # 'A person correctly wearing a mask or scarf, covering mouth and nose completely.',
             # 'A photo of a person wearing a mask incorrectly, with the mouth and nose not properly covered or the eyes covered by the mask.',
             # 'A photo of a person without mask.',
+            'A person correctly wearing a mask, covering mouth and nose completely, and possibly wearing a scarf.',
+            'A photo of a person wearing a mask incorrectly, with the mouth and nose not properly covered or the eyes covered by the mask.',
+            'A photo of a person without mask.',
             
         ]
         gender_captions = [

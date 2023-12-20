@@ -169,7 +169,8 @@ def main(data_dir, model_dir, config):
     dataset = dataset_module(
         data_dir=data_dir,
         multi_head=config.multi_head,
-        use_caution=config.use_caution_data
+        use_caution=config.use_caution_data,
+        val_ratio=config.val_ratio
     )
     num_classes = dataset.num_classes
     dataset_mean = dataset.mean
@@ -397,7 +398,7 @@ if __name__ == '__main__':
         help="input batch size for validing (default: 1000)",
     )
     parser.add_argument(
-        "--model", type=str, default="CLIP3Head3Proj_Aggregation1", help="model type (default: EfficientNetB0MultiHead)"
+        "--model", type=str, default="CLIP3Head3Proj", help="model type (default: EfficientNetB0MultiHead)"
     )
     parser.add_argument(
         "--optimizer", type=str, default="Adam", help="optimizer type (default: Adam)"
