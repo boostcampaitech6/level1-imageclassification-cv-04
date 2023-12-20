@@ -221,56 +221,57 @@ def main(data_dir, model_dir, config):
         skf = StratifiedKFold(n_splits=n_splits)
 
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
-            print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
-            wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
-            wandb.run.name = f'{config.wandb}_fold{i}'
+            if i==2: # fold2만
+                print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
+                wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
+                wandb.run.name = f'{config.wandb}_fold{i}'
 
-            # -- data_loader
-            train_set, val_set = dataset.split_dataset()
-            batch_size = config.batch_size
-            num_workers = 0
+                # -- data_loader
+                train_set, val_set = dataset.split_dataset()
+                batch_size = config.batch_size
+                num_workers = 0
 
-            if config.augmentation == "CutmixAugmentation":
-                train_dataloader, valid_dataloader = getDataloader_cutmix(
-                    dataset, train_idx, valid_idx, batch_size, num_workers, config.cutmix
+                if config.augmentation == "CutmixAugmentation":
+                    train_dataloader, valid_dataloader = getDataloader_cutmix(
+                        dataset, train_idx, valid_idx, batch_size, num_workers, config.cutmix
+                    )
+                else:
+                    train_dataloader, valid_dataloader = getDataloader(
+                        dataset, train_idx, valid_idx, batch_size, num_workers
+                    )
+
+                # build model architecture, then print to console
+                model_module = getattr(module_arch, config.model)
+                model = model_module(num_classes=num_classes).to(device)
+                model = torch.nn.DataParallel(model)
+
+                # get function handles of loss and metrics
+                criterion = module_loss.create_criterion(config.criterion)
+                if config.model == "ArcfaceMultiHead":
+                    criterion = module_loss.create_criterion("focal")
+
+                # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
+                trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+                optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
+                optimizer = optimizer_module(
+                    trainable_params,
+                    lr=config.lr,
                 )
-            else:
-                train_dataloader, valid_dataloader = getDataloader(
-                    dataset, train_idx, valid_idx, batch_size, num_workers
-                )
+                if config.scheduler == "StepLR":
+                    lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
+                elif config.scheduler == "ReduceLROnPlateau":
+                    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
 
-            # build model architecture, then print to console
-            model_module = getattr(module_arch, config.model)
-            model = model_module(num_classes=num_classes).to(device)
-            model = torch.nn.DataParallel(model)
+                trainer = Trainer(model, criterion, optimizer,
+                                config=config,
+                                device=device,
+                                train_dataloader=train_dataloader,
+                                valid_dataloader=valid_dataloader,
+                                dataset_mean = dataset_mean,
+                                dataset_std = dataset_std,
+                                lr_scheduler=lr_scheduler)
 
-            # get function handles of loss and metrics
-            criterion = module_loss.create_criterion(config.criterion)
-            if config.model == "ArcfaceMultiHead":
-                criterion = module_loss.create_criterion("focal")
-
-            # build optimizer, learning rate scheduler. delete every lines containing lr_scheduler for disabling scheduler
-            trainable_params = filter(lambda p: p.requires_grad, model.parameters())
-            optimizer_module = getattr(import_module("torch.optim"), config.optimizer)  # default: Adam
-            optimizer = optimizer_module(
-                trainable_params,
-                lr=config.lr,
-            )
-            if config.scheduler == "StepLR":
-                lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
-            elif config.scheduler == "ReduceLROnPlateau":
-                lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=config.patience, min_lr=1e-6, verbose=True)
-
-            trainer = Trainer(model, criterion, optimizer,
-                            config=config,
-                            device=device,
-                            train_dataloader=train_dataloader,
-                            valid_dataloader=valid_dataloader,
-                            dataset_mean = dataset_mean,
-                            dataset_std = dataset_std,
-                            lr_scheduler=lr_scheduler)
-
-            trainer.train()
+                trainer.train()
 
 
 if __name__ == '__main__':
