@@ -247,7 +247,7 @@ class CLIP3Head3Proj(nn.Module):
             # 'a photo of a young person under 30.',
             # 'a photo of a middle-aged person aged between 30 and 60.',
             # 'a photo of an elderly person over 60 years old.',
-            'the young person looks like under 30 years old.'
+            'the young person looks like under 30 years old.',
             'a photo of a middle-aged person.',
             'A photo of an elderly person over 60 years old.',
         ]
