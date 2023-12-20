@@ -11,6 +11,8 @@ from torchvision.utils import make_grid
 from base.base_trainer import BaseTrainer
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
+# from model.arcface_metrics import *
+from data_loader.cutmix import CutMixCriterion
 
 
 class Trainer(BaseTrainer):
@@ -31,21 +33,15 @@ class Trainer(BaseTrainer):
         self.best_val_acc = 0
         self.best_val_loss = np.inf
         
-        self.scaler = torch.cuda.amp.GradScaler()
-
         self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
         # logging with tensorboard
         self.logger = SummaryWriter(log_dir=self.save_dir)
         with open(os.path.join(self.save_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(vars(config), f, ensure_ascii=False, indent=4)
 
-        # logging with wandb
-        # wandb.init(entity="level1-cv-04")
-        wandb.init(project="level1-imageclassification-cv-04", entity="level1-cv-04") # NOTE: 다른 팀이 있을 경우에 entity를 설정해주어야 한다.
-        # 실행 이름 설정
-        wandb.run.name = self.config.wandb
-        wandb.run.save()
-        wandb.config.update(self.config)
+        self.cutmix_criterion = CutMixCriterion(self.criterion)
+        self.scaler = torch.cuda.amp.GradScaler()
+
 
     def increment_path(self, path, exist_ok=False):
         """Automatically increment path, i.e. runs/exp --> runs/exp0, runs/exp1 etc.
@@ -78,6 +74,10 @@ class Trainer(BaseTrainer):
         loss_value = 0
         matches = 0
         
+        acc_mask_items = []  
+        acc_gender_items = []  
+        acc_age_items = []  
+        
         tgt2idx = {'mask':0, 'gender': 1, 'age': 2}
         
         for idx, train_batch in enumerate(self.train_dataloader):
@@ -89,33 +89,87 @@ class Trainer(BaseTrainer):
                     target_index = tgt2idx[self.config.target]
 
                     inputs, labels, mask, gender, age = train_batch
+                    inputs = inputs.to(self.device)
+                    labels = labels.to(self.device)
+                    
                     targets = (mask, gender, age)
                     target = targets[target_index]
-                    target = target.to(self.device)
                     
-                    with torch.cuda.amp.autocast():
-                        out = self.model(inputs)[target_index]
-                        loss = self.criterion(out, target)                
-                        preds = torch.argmax(out, dim=-1)
+                    if self.config.augmentation == "CutmixAugmentation":
+                        target, target2, lam = target.copy()
+                        target = target.to(self.device)
+                        target2 = target2.to(self.device)
+                    
+                        with torch.cuda.amp.autocast():
+                            out = self.model(inputs)[target_index]
+                            loss = self.cutmix_criterion(out, (target, target2, lam))                
+                            preds = torch.argmax(out, dim=-1)
+                    else:
+                        target = target.to(self.device)
+                        
+                        with torch.cuda.amp.autocast():
+                            out = self.model(inputs)[target_index]
+                            loss = self.criterion(out, target)                
+                            preds = torch.argmax(out, dim=-1)
                     
                 else:
                     inputs, labels, mask, gender, age = train_batch
                     inputs = inputs.to(self.device)
                     labels = labels.to(self.device)
-                    mask = mask.to(self.device)
-                    gender = gender.to(self.device)
-                    age = age.to(self.device)
+                    
+                    if self.config.augmentation == "CutmixAugmentation":
+                        mask, mask2, lam = mask.copy()
+                        mask = mask.to(self.device)
+                        mask2 = mask2.to(self.device)
+                        gender, gender2, lam = gender.copy()
+                        gender = gender.to(self.device)
+                        gender2 = gender2.to(self.device)
+                        age, age2, lam = age.copy()
+                        age = age.to(self.device)
+                        age2 = age2.to(self.device)
+                        
+                        with torch.cuda.amp.autocast():
+                            outs = self.model(inputs)
+                            pred_mask, pred_gender, pred_age = outs
+                            loss_mask = self.cutmix_criterion(pred_mask, (mask, mask2, lam))
+                            loss_gender = self.cutmix_criterion(pred_gender, (gender, gender2, lam))
+                            loss_age = self.cutmix_criterion(pred_age, (age, age2, lam))
+                            loss = loss_mask + loss_gender + loss_age
+                            preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                            
+                        # NOTE: 이 부분도 수정되어야 함.
+                        acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                        acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                        acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
 
-                    with torch.cuda.amp.autocast():
-                        outs = self.model(inputs)
-                        pred_mask, pred_gender, pred_age = outs
-                        loss_mask = self.criterion(pred_mask, mask)
-                        loss_gender = self.criterion(pred_gender, gender)
-                        loss_age = self.criterion(pred_age, age)
-                        loss = loss_mask + loss_gender + loss_age
-                        preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                        acc_mask_items.append(acc_mask)
+                        acc_gender_items.append(acc_gender)
+                        acc_age_items.append(acc_age)
+                    else:
+                        mask = mask.to(self.device)
+                        gender = gender.to(self.device)
+                        age = age.to(self.device)
+
+                        with torch.cuda.amp.autocast():
+                            outs = self.model(inputs)
+                            pred_mask, pred_gender, pred_age = outs
+                            loss_mask = self.criterion(pred_mask, mask)
+                            loss_gender = self.criterion(pred_gender, gender)
+                            loss_age = self.criterion(pred_age, age)
+                            loss = loss_mask + loss_gender + loss_age
+                            preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                            
+                        acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                        acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                        acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+
+                        acc_mask_items.append(acc_mask)
+                        acc_gender_items.append(acc_gender)
+                        acc_age_items.append(acc_age)
 
             else:
+                if self.config.augmentation == "CutmixAugmentation":
+                    print("Not Implemented.")
                 inputs, labels = train_batch
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
@@ -125,24 +179,32 @@ class Trainer(BaseTrainer):
                     loss = self.criterion(outs, labels)
                     preds = torch.argmax(outs, dim=-1)
 
+            # loss.backward()
+            # self.optimizer.step()
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
             
             loss_value += loss.item()
             if self.config.target:
-                matches += (preds == target).sum().item()
+                matches += (preds == target).sum().item()   # NOTE: CUTMIX를 지대로 쓰기 위해선 이 부분을 수정해야 합니다.
             else:
                 matches += (preds == labels).sum().item()
             if (idx + 1) % self.config.log_interval == 0:
                 train_loss = loss_value / self.config.log_interval
                 train_acc = matches / self.config.batch_size / self.config.log_interval
                 current_lr = self.get_lr(self.optimizer)
-                print(
-                    f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
-                    f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
-                )
-
+                if self.config.multi_head:
+                    print(
+                        f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
+                        f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr} ||",
+                        f"mask accuracy {np.mean(acc_mask_items):4.2%} || gender accuracy {np.mean(acc_gender_items):4.2%} || age accuracy {np.mean(acc_age_items):4.2%}"
+                    )
+                else:
+                    print(
+                        f"Epoch[{epoch}/{self.config.epochs}]({idx + 1}/{len(self.train_dataloader)}) || "
+                        f"training loss {train_loss:4.4} || training accuracy {train_acc:4.2%} || lr {current_lr}"
+                    )
                 # tensorboard: 학습 단계에서 Loss, Accuracy 로그 저장
                 self.logger.add_scalar(
                     "Train/loss", train_loss, epoch * len(self.train_dataloader) + idx
@@ -155,13 +217,23 @@ class Trainer(BaseTrainer):
                 matches = 0   
 
                 # wandb: 학습 단계에서 Loss, Accuracy 로그 저장
-                wandb.log({
-                    "Train loss": train_loss,
-                    "Train acc" : train_acc
-                })
+                if self.config.multi_head:
+                    wandb.log({
+                        "Train loss": train_loss,
+                        "Train acc" : train_acc,
+                        "Train acc mask": np.mean(acc_mask_items),
+                        "Train acc gender": np.mean(acc_gender_items),
+                        "Train acc age": np.mean(acc_age_items),
+                    })
+                else:
+                    wandb.log({
+                        "Train loss": train_loss,
+                        "Train acc" : train_acc,
+                    })
 
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
+        if self.lr_scheduler is not None:            
+            if self.config.scheduler != "ReduceLROnPlateau":
+                self.lr_scheduler.step()
 
         if self.do_validation:
             self._valid_epoch(epoch)
@@ -180,6 +252,11 @@ class Trainer(BaseTrainer):
             print("Calculating validation results...")
             val_loss_items = []
             val_acc_items = []
+            
+            val_acc_mask_items = []
+            val_acc_gender_items = []
+            val_acc_age_items = []
+            
             figure = None
 
             tgt2idx = {'mask':0, 'gender': 1, 'age': 2}
@@ -196,9 +273,10 @@ class Trainer(BaseTrainer):
                         target = targets[target_index]
                         target = target.to(self.device)
                         
-                        out = self.model(inputs)[target_index]
-                        loss_item = self.criterion(out, target).item()
-                        preds = torch.argmax(out, dim=-1)
+                        with torch.cuda.amp.autocast():
+                            out = self.model(inputs)[target_index]
+                            loss_item = self.criterion(out, target).item()
+                            preds = torch.argmax(out, dim=-1)
                     
                     else:
                         inputs, labels, mask, gender, age = val_batch
@@ -208,24 +286,33 @@ class Trainer(BaseTrainer):
                         gender = gender.to(self.device)
                         age = age.to(self.device)
 
-                        outs = self.model(inputs)
-                        pred_mask, pred_gender, pred_age = outs
+                        with torch.cuda.amp.autocast():
+                            outs = self.model(inputs)
+                            pred_mask, pred_gender, pred_age = outs
+                            
+                            loss_mask = self.criterion(pred_mask, mask)
+                            loss_gender = self.criterion(pred_gender, gender)
+                            loss_age = self.criterion(pred_age, age)
+                            loss_item = (loss_mask + loss_gender + loss_age).item()
+                            preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
-                        loss_mask = self.criterion(pred_mask, mask)
-                        loss_gender = self.criterion(pred_gender, gender)
-                        loss_age = self.criterion(pred_age, age)
-                        loss_item = (loss_mask + loss_gender + loss_age).item()
-                        preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
-
+                        acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
+                        acc_gender = (torch.argmax(pred_gender, dim=-1) == gender).sum().item() / gender.numel()
+                        acc_age = (torch.argmax(pred_age, dim=-1) == age).sum().item() / age.numel()
+                        
+                        val_acc_mask_items.append(acc_mask)
+                        val_acc_gender_items.append(acc_gender)
+                        val_acc_age_items.append(acc_age)
+                        
                 else:
                     inputs, labels = val_batch
                     inputs = inputs.to(self.device)
                     labels = labels.to(self.device)
 
-                    outs = self.model(inputs)
-                    preds = torch.argmax(outs, dim=-1)
-
-                    loss_item = self.criterion(outs, labels).item()
+                    with torch.cuda.amp.autocast():
+                        outs = self.model(inputs)
+                        preds = torch.argmax(outs, dim=-1)
+                        loss_item = self.criterion(outs, labels).item()
 
                 if self.config.target:
                     acc_item = (target == preds).sum().item()                
@@ -260,12 +347,25 @@ class Trainer(BaseTrainer):
                 torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
+            
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
             torch.save(self.optimizer.state_dict(), f"{self.save_dir}/last_optimizer.pth")
-            print(
-                f"[Val] acc : {val_acc:4.2%}, loss: {val_loss:4.2} || "
-                f"best acc : {self.best_val_acc:4.2%}, best loss: {self.best_val_loss:4.2}"
-            )
+            
+            if self.config.multi_head:
+                print(
+                    f"[Val] acc : {val_acc:4.2%} || mask acc : {np.mean(val_acc_mask_items):4.2%} || "
+                    f"gender acc : {np.mean(val_acc_gender_items):4.2%} || age acc : {np.mean(val_acc_age_items):4.2%} || loss: {val_loss:4.2} || "
+                    f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
+                )
+            else:
+                print(
+                    f"[Val] acc : {val_acc:4.2%} || loss: {val_loss:4.2} || "
+                    f"best acc : {self.best_val_acc:4.2%} || best loss: {self.best_val_loss:4.2}"
+                )
+                
+            # "ReduceLROnPlateau" scheduler step
+            if self.config.scheduler == "ReduceLROnPlateau":
+                self.lr_scheduler.step(val_acc)
 
             # tensorboard: 검증 단계에서 Loss, Accuracy 로그 저장
             self.logger.add_scalar("Val/loss", val_loss, epoch)
@@ -274,11 +374,21 @@ class Trainer(BaseTrainer):
             print()
 
             # wandb: 검증 단계에서 Loss, Accuracy 로그 저장
-            wandb.log({
-                "Valid loss": val_loss,
-                "Valid acc" : val_acc,
-                "results": wandb.Image(figure),
-            })
+            if self.config.multi_head:
+                wandb.log({
+                    "Valid loss": val_loss,
+                    "Valid acc" : val_acc,
+                    "Valid acc_mask" : np.mean(val_acc_mask_items),
+                    "Valid acc_gender" : np.mean(val_acc_gender_items),
+                    "Valid acc_age" : np.mean(val_acc_age_items),
+                    "results": wandb.Image(figure),
+                })
+            else:
+                wandb.log({
+                    "Valid loss": val_loss,
+                    "Valid acc" : val_acc,
+                    "results": wandb.Image(figure),
+                })
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'
