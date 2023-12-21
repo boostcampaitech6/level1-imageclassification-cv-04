@@ -22,13 +22,15 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
     caution_labels =['000214', '000226', '000725', '000736', '000763', '000767', '000773', '000817', 
                      '001049', '001509', '003724', '001200', '005523']
 
+    # random 3000 samples: (0.5620, 0.5275, 0.5050), (0.6182, 0.5902, 0.5715)
+    # basic: (0.548, 0.504, 0.479), (0.237, 0.247, 0.246)
     def __init__(
         self,
         data_dir,
         multi_head,
         use_caution,
-        mean=(0.548, 0.504, 0.479),
-        std=(0.237, 0.247, 0.246),
+        mean=(0.5620, 0.5275, 0.5050),
+        std=(0.6182, 0.5902, 0.5715),
         val_ratio=0.2,
     ):
         self.indices = defaultdict(list)

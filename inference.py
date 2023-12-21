@@ -53,9 +53,9 @@ def main(config):
     transform = transforms.Compose([
         CenterCrop((320, 256)),
         Resize(config.resize, Image.BILINEAR),
-        ColorJitter(0.1, 0.1, 0.1, 0.1),
+        ColorJitter(0.1, 0.1, 0.1, 0.01),
         ToTensor(),
-        Normalize(mean=(0.548, 0.504, 0.497), std=(0.237, 0.247, 0.246))
+        Normalize(mean=(0.5620, 0.5275, 0.5050), std=(0.6182, 0.5902, 0.5715))
     ])
     dataset = TestDataset(image_paths, transform)
 

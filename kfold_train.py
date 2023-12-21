@@ -283,12 +283,14 @@ def main(data_dir, model_dir, config):
         trainer.train()
 
     elif config.kfold == 1:
-        # 5-fold Stratified KFold 5개의 fold를 형성하고 5번 Cross Validation을 진행합니다.
+        # Stratified KFold k개의 fold를 형성하고 k번 Cross Validation을 진행합니다.
         # k=5 일 때, valid_batch_size=90, k=10 일 때, valid_batch_size=45
         n_splits = 10
         skf = StratifiedKFold(n_splits=n_splits)
 
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
+            if i not in [0, 1, 2]:
+                continue
             print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
             wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
             wandb.run.name = f'{config.wandb}_fold{i}'

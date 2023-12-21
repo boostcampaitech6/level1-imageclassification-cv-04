@@ -32,6 +32,7 @@ class Trainer(BaseTrainer):
         self.best_val_acc = 0
         self.best_val_loss = np.inf
         self.valid_loss = module_loss.F1Loss()
+        self.patience = 0
         
         # logging with config.json
         # self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
@@ -283,30 +284,30 @@ class Trainer(BaseTrainer):
             val_loss = np.sum(val_loss_items) / len(self.valid_dataloader)
             val_acc = np.sum(val_acc_items) / (len(self.valid_dataloader) * self.config.valid_batch_size)
             if self.config.best_model == "acc":
-                patience = 0
                 if val_acc > self.best_val_acc:
                     print(
                         f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
                     )
                     torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
                     self.best_val_acc = val_acc
-                    patience = 0  # 초기화
-                else:
-                    patience += 1
-                    if patience == self.config.early_stopping:
+                    self.patience = 0  # 초기화
+                elif val_acc <= self.best_val_acc:
+                    self.patience += 1
+                    print("patience:", self.patience)
+                    if self.patience == self.config.early_stopping:
                         return print("Early Stopped ! ! !")
                 self.best_val_loss = min(self.best_val_loss, val_loss)
             elif self.config.best_model == "loss":
-                patience = 0
                 if val_loss < self.best_val_loss:
                     print(
                         f"New best model for val loss : {val_loss:4.2}! saving the best model.."
                     )
                     torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
                     self.best_val_loss = val_loss
-                    patience = 0  # 초기화
-                else:
-                    if patience == self.config.early_stopping:
+                    self.patience = 0  # 초기화
+                elif val_loss >= self.best_val_loss:
+                    self.patience += 1
+                    if self.patience == self.config.early_stopping:
                         return print("Early Stopped ! ! !")
                 self.best_val_acc = max(self.best_val_acc, val_acc)
             
