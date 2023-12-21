@@ -65,7 +65,7 @@ def main(config):
         ToTensor(),
         Normalize(mean=(0.5620, 0.5275, 0.5050), std=(0.6182, 0.5902, 0.5715))
     ])
-    dataset = TestDataset(image_paths[::4], transform)
+    dataset = TestDataset(image_paths, transform)
 
     loader = DataLoader(
         dataset,
@@ -112,7 +112,7 @@ def main(config):
     
     # all_predictions = np.array(all_predictions)
     for i in range(18):
-        submission[f'ans{i}'] = np.array(all_predictions[:, i] + [0 for _ in range(13450)])
+        submission[f'ans{i}'] = all_predictions[:, i]
         print(submission[f"ans{i}"])
     
     # submission["mask"] = pred_masks
