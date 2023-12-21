@@ -85,17 +85,103 @@ class ArcfaceResNetAugmentation:
 
 
 class CutmixAugmentation:
-    """Cutmix Augmentation을 담당하는 클래스. BaseAugmentation과 동일합니다. 
+    """Cutmix Augmentation을 담당하는 클래스. ChanwooAugmentation과 동일
+    합니다. 
     실질적으로 cutmix가 수행되는 곳은 dataloader의 collate_fn으로 지정된 CutMixCollator입니다.
     (data_loader/cutmix.py 참조)"""
 
     def __init__(self, resize, mean, std, **args):
         self.transform = Compose(
             [
+                CenterCrop((320, 256)),
                 Resize(resize, Image.BILINEAR),
+                ColorJitter(0.1, 0.1, 0.1, 0.1),
                 ToTensor(),
                 Normalize(mean=mean, std=std),
                 RandomHorizontalFlip(0.5),
+            ]
+        )
+
+    def __call__(self, image):
+        return self.transform(image)
+
+
+class ChanwooAugmentation:
+    """
+    짱찬우님의 갓aug
+    """
+
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose(
+            [
+                CenterCrop((320, 256)),
+                Resize(resize, Image.BILINEAR),
+                ColorJitter(0.1, 0.1, 0.1, 0.1),
+                ToTensor(),
+                Normalize(mean=mean, std=std),
+                RandomHorizontalFlip(0.5),
+            ]
+        )
+
+    def __call__(self, image):
+        return self.transform(image)
+    
+
+class ChanwooAugmentation2:
+    """
+    ChanwooAugmentation에서 color jitter hue값 줄이기
+    """
+
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose(
+            [
+                CenterCrop((320, 256)),
+                Resize(resize, Image.BILINEAR),
+                ColorJitter(0.1, 0.1, 0.1, 0.01), # hue in [-0.01, 0.01]
+                ToTensor(),
+                Normalize(mean=mean, std=std),
+                RandomHorizontalFlip(0.5),
+            ]
+        )
+
+    def __call__(self, image):
+        return self.transform(image)
+    
+
+class SwinAugmentation:
+    """
+    ChanwooAugmentation에서 color jitter hue값 줄이기
+    """
+
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose(
+            [
+                CenterCrop((320, 256)),
+                Resize(resize, Image.BILINEAR),
+                ColorJitter(0.1, 0.1, 0.1, 0.01), # hue in [-0.01, 0.01]
+                ToTensor(),
+                Normalize(mean=mean, std=std),
+                RandomHorizontalFlip(0.5),
+            ]
+        )
+
+    def __call__(self, image):
+        return self.transform(image)
+
+
+class CLIPAugmentation:
+    """커스텀 Augmentation을 담당하는 클래스"""
+
+    def __init__(self, resize, mean, std, **args):
+        self.transform = Compose(
+            [
+                CenterCrop((320, 256)),
+                Resize(resize, Image.BILINEAR),
+                ColorJitter(0.1, 0.1, 0.1, 0.1),
+                ToTensor(),
+                Normalize(mean=(0.5620, 0.5275, 0.5050), std=std),
+                RandomHorizontalFlip(0.5),
+                # AddGaussianNoise(),
             ]
         )
 

@@ -12,7 +12,7 @@ import model.model as module_arch
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from torchvision.transforms import Resize, ToTensor, Normalize
+from torchvision.transforms import Resize, ToTensor, Normalize, RandomHorizontalFlip, CenterCrop
 
 def decode_pred(mask,gender,age):
     mask_dict = { 0:"MASK", 1:"INCORRECT", 2:"NORMAL"}
@@ -47,11 +47,29 @@ def main(config):
     image_paths = [os.path.join(image_dir, img_id) for img_id in submission.ImageID]
 
     # Test Dataset 클래스 객체를 생성하고 DataLoader를 만듭니다.
+    # transform = transforms.Compose([
+    #     Resize(config.resize, Image.BILINEAR),
+    #     ToTensor(),
+    #     Normalize(mean=(0.548, 0.504, 0.497), std=(0.237, 0.247, 0.246))
+    # ])
+    # Test Dataset 클래스 객체를 생성하고 DataLoader를 만듭니다.
+
+    # # BaseAugmentation
+    # transform = transforms.Compose([
+    #     Resize(config.resize, Image.BILINEAR),
+    #     ToTensor(),
+    #     Normalize(mean=(0.548, 0.504, 0.497), std=(0.237, 0.247, 0.246)),
+    #     RandomHorizontalFlip(0.5),
+    # ])
+
+    # ChanwooAugmentation
     transform = transforms.Compose([
+        CenterCrop((320, 256)),
         Resize(config.resize, Image.BILINEAR),
         ToTensor(),
         Normalize(mean=(0.548, 0.504, 0.497), std=(0.237, 0.247, 0.246))
     ])
+
     dataset = TestDataset(image_paths, transform)
 
     loader = DataLoader(
