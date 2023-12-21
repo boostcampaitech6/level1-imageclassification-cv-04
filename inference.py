@@ -63,7 +63,7 @@ def main(config):
         Resize(config.resize, Image.BILINEAR),
         ColorJitter(0.1, 0.1, 0.1, 0.01),
         ToTensor(),
-        Normalize(mean=(0.5620, 0.5275, 0.5050), std=(0.237, 0.247, 0.246))
+        Normalize(mean=(0.548, 0.504, 0.479), std=(0.237, 0.247, 0.246))
     ])
     dataset = TestDataset(image_paths, transform)
 
