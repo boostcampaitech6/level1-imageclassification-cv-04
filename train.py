@@ -225,7 +225,7 @@ def main(data_dir, model_dir, config):
         skf = StratifiedKFold(n_splits=n_splits)
 
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
-            if i in [8, 9]:
+            if i in [9]:
                 print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
                 wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
                 wandb.run.name = f'{config.wandb}_fold{i}'
