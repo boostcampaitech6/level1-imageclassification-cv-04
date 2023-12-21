@@ -1,6 +1,7 @@
 import argparse
 import os
 import pandas as pd
+import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
@@ -64,7 +65,7 @@ def main(config):
         ToTensor(),
         Normalize(mean=(0.5620, 0.5275, 0.5050), std=(0.6182, 0.5902, 0.5715))
     ])
-    dataset = TestDataset(image_paths, transform)
+    dataset = TestDataset(image_paths[::4], transform)
 
     loader = DataLoader(
         dataset,
@@ -100,12 +101,26 @@ def main(config):
                         prediction = soft_voting(pred_mask[i], pred_gender[i], pred_age[i])
                         all_predictions.append(prediction.cpu().numpy())
                 # ====================================
+                
+                pred_masks.extend(torch.argmax(pred_mask, dim=-1).cpu().numpy())
+                pred_genders.extend(torch.argmax(pred_gender, dim=-1).cpu().numpy())
+                pred_ages.extend(torch.argmax(pred_age, dim=-1).cpu().numpy())
             else:
                 pred = model(images)
                 pred = pred.argmax(dim=-1)
                 all_predictions.extend(pred.cpu().numpy())
-                
-    submission['ans'] = all_predictions
+    
+    # all_predictions = np.array(all_predictions)
+    for i in range(18):
+        submission[f'ans{i}'] = np.array(all_predictions[:, i] + [0 for _ in range(13450)])
+        print(submission[f"ans{i}"])
+    
+    # submission["mask"] = pred_masks
+    # submission["gender"] = pred_genders
+    # submission["age"] = pred_ages
+    
+    # for i in range(len(submission)):
+    #     submission["mask"][i],submission["gender"][i],submission["age"][i] = decode_pred(submission["mask"][i],submission["gender"][i],submission["age"][i])
 
     # 제출할 파일을 저장합니다.
     submission.to_csv(os.path.join(config.test_dir, 'submission.csv'), index=False)
@@ -151,7 +166,7 @@ if __name__ == '__main__':
         "--ensemble",
         type=str,
         default="hard",
-        help="input batch size for validing (default: 1000)",
+        help="hard or soft",
     )
     args = parser.parse_args()
     print(args)
