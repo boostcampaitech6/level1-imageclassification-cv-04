@@ -81,7 +81,6 @@ class Trainer(BaseTrainer):
         acc_age_items = []  
         
         tgt2idx = {'mask':0, 'gender': 1, 'age': 2}
-        
         for idx, train_batch in enumerate(self.train_dataloader):
             self.optimizer.zero_grad()
             if self.config.multi_head:

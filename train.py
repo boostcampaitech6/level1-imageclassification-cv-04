@@ -89,6 +89,8 @@ def seed_everything(seed):
     
     
 def getDataloader(dataset, train_idx, valid_idx, batch_size, valid_batch_size, num_workers):
+    dataset.indices['train'] = train_idx
+    dataset.indices['val'] = valid_idx
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset, indices=train_idx)
     # 인자로 전달받은 dataset에서 valid_idx에 해당하는 Subset 추출
@@ -123,6 +125,8 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, valid_batch_size, n
 
 
 def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, valid_batch_size, num_workers, cutmix):
+    dataset.indices['train'] = train_idx
+    dataset.indices['val'] = valid_idx
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset, indices=train_idx)
     # 인자로 전달받은 dataset에서 valid_idx에 해당하는 Subset 추출
@@ -287,8 +291,7 @@ def main(data_dir, model_dir, config):
         skf = StratifiedKFold(n_splits=n_splits)
         
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
-
-            if i != 1 and i != 2: continue
+            # if i != 1 and i != 2: continue
 
             print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
             wandb.init(project="level1-imageclassification-cv-04", entity='level1-cv-04',  config=config, reinit=True)
