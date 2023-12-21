@@ -36,7 +36,14 @@ class TestDataset(Dataset):
 
     def __len__(self):
         return len(self.img_paths)
-    
+
+def soft_voting(mask, gender, age):
+    classes = []
+    for m in mask:
+        for g in gender:
+            for a in age:
+                classes.append(m*6 + g*3 + a)
+    return torch.tensor(classes)
 
 def main(config):
     device = torch.device('cuda')
@@ -84,25 +91,21 @@ def main(config):
             if config.multi_head:
                 pred = model(images)
                 pred_mask, pred_gender, pred_age = pred
-                pred = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
-                all_predictions.extend(pred.cpu().numpy())
-
-                pred_masks.extend(torch.argmax(pred_mask, dim=-1).cpu().numpy())
-                pred_genders.extend(torch.argmax(pred_gender, dim=-1).cpu().numpy())
-                pred_ages.extend(torch.argmax(pred_age, dim=-1).cpu().numpy())
+                if config.ensemble == "hard":
+                    pred = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
+                    all_predictions.extend(pred.cpu().numpy())
+                # ====================================
+                elif config.ensemble == "soft":
+                    for i in range(len(images)):
+                        prediction = soft_voting(pred_mask[i], pred_gender[i], pred_age[i])
+                        all_predictions.append(prediction.cpu().numpy())
+                # ====================================
             else:
                 pred = model(images)
                 pred = pred.argmax(dim=-1)
                 all_predictions.extend(pred.cpu().numpy())
                 
     submission['ans'] = all_predictions
-
-    # submission["mask"] = pred_masks
-    # submission["gender"] = pred_genders
-    # submission["age"] = pred_ages
-    
-    # for i in range(len(submission)):
-    #     submission["mask"][i],submission["gender"][i],submission["age"][i] = decode_pred(submission["mask"][i],submission["gender"][i],submission["age"][i])
 
     # 제출할 파일을 저장합니다.
     submission.to_csv(os.path.join(config.test_dir, 'submission.csv'), index=False)
@@ -142,6 +145,12 @@ if __name__ == '__main__':
         "--batch_size",
         type=int,
         default=100,
+        help="input batch size for validing (default: 1000)",
+    )
+    parser.add_argument(
+        "--ensemble",
+        type=str,
+        default="hard",
         help="input batch size for validing (default: 1000)",
     )
     args = parser.parse_args()

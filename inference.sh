@@ -3,9 +3,10 @@
 RESIZE="224 224"
 MODEL_ARCH=1
 MODEL=SwinTransformerBase224V1
-RESULT_NAME="SwinTransformerV1_f1"
+RESULT_NAME="final_SwinTransformerV1_f1_fold0"
 TEST_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/data/eval"
 MODEL_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/results/${RESULT_NAME}/best.pth"
+ENSEMBLE="soft"
 
 # run with args
 python inference.py \
@@ -13,4 +14,5 @@ python inference.py \
 --multi_head ${MODEL_ARCH} \
 --model ${MODEL} \
 --test_dir "${TEST_DIR}" \
---model_path "${MODEL_DIR}"
+--model_path "${MODEL_DIR}" \
+--ensemble ${ENSEMBLE}
