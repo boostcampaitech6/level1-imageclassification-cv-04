@@ -111,7 +111,8 @@ def main(data_dir, model_dir, config):
     dataset = dataset_module(
         data_dir=data_dir,
         multi_head=config.multi_head,
-        use_caution=config.use_caution_data
+        use_caution=config.use_caution_data,
+        val_ratio=config.val_ratio
     )
     num_classes = dataset.num_classes
     dataset_mean = dataset.mean
