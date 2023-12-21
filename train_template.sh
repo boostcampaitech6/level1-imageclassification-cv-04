@@ -14,25 +14,25 @@
 
 # ${변수} 정의
 NAME="test" # test / exp
-WANDB="test_CLIP3Head3Proj_Aggregation_CustomAug_Plateau_KFold_WeightedSampling"
-EPOCH=10
+WANDB="test_CLIP3Head3Proj_mask"
+EPOCH=15
 BATCH=512    # 경향을 파악하는건 64가 나은 듯
 DATASET="MaskSplitByProfileDataset"
 DATA_USE=1
-MODEL="CLIP3Head3Proj_Aggregation"
+MODEL="CLIP3Head3Proj"
 # TODO: 2. model training
 MODEL_ARCH=1
 AUG="CustomAugmentation"
 LR=0.001
-SCHEDULER=ReduceLROnPlateau
-KFOLD=1
+SCHEDULER=StepLR
+KFOLD=0
 LOSS="f1"
 OPT="Adam"
 # TODO: 7. lr scheduler
 # TODO: 8. additional
 DATA_DIR="/data/ephemeral/home/maskdata"
 OUTPUT_DIR="/data/ephemeral/home/output"
-DECAY_STEP=10
+DECAY_STEP=5
 
 # run with args
 python train.py \
@@ -54,8 +54,7 @@ python train.py \
 --augmentation ${AUG} \
 --scheduler ${SCHEDULER} \
 --kfold ${KFOLD} \
---cutmix 0 \
---patience 5 \
+--target mask \
 --resize 224 224   # For CLIP model
 
 
