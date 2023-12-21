@@ -71,9 +71,9 @@ class CustomAugmentation:
             [
                 CenterCrop((320, 256)),
                 Resize(resize, Image.BILINEAR),
-                ColorJitter(0.1, 0.1, 0.1, 0.01),
+                ColorJitter(0.1, 0.1, 0.1, 0.1),
                 ToTensor(),
-                Normalize(mean=mean, std=std),
+                Normalize(mean=(0.5620, 0.5275, 0.5050), std=std),
                 RandomHorizontalFlip(0.5),
                 # AddGaussianNoise(),
             ]

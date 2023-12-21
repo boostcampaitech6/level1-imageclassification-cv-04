@@ -58,7 +58,7 @@ python train.py \
 --resize 224 224   # For CLIP model
 
 
+# --valid_batch_size 378 \
 
-# --valid_batch_size 100 \
 # --target_gender ${TARGET_GENDER} \
 # --target_mask ${TARGET_MASK} \
