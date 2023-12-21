@@ -29,6 +29,8 @@ def seed_everything(seed):
 
 
 def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers, config):
+    dataset.indices['train'] = train_idx
+    dataset.indices['valid'] = valid_idx
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset,
                                         indices=train_idx)
@@ -63,6 +65,8 @@ def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers, config
 
 
 def getDataloader_cutmix(dataset, train_idx, valid_idx, batch_size, num_workers, config):
+    dataset.indices['train'] = train_idx
+    dataset.indices['valid'] = valid_idx
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset,
                                         indices=train_idx)
@@ -202,7 +206,7 @@ def main(data_dir, model_dir, config):
         if config.scheduler == "StepLR":
             lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
         elif config.scheduler == "ReduceLROnPlateau":
-            lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=config.patience, min_lr=1e-6, verbose=True)
+            lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=config.patience, min_lr=1e-6, verbose=True)
         
         trainer = Trainer(model, criterion, optimizer,
                         config=config,
@@ -216,12 +220,12 @@ def main(data_dir, model_dir, config):
         trainer.train()
 
     elif config.kfold == 1:
-        # 5-fold Stratified KFold 5개의 fold를 형성하고 5번 Cross Validation을 진행합니다.
-        n_splits = 5
+        # 5-fold Stratified KFold n개의 fold를 형성하고 5번 Cross Validation을 진행합니다.
+        n_splits = 10
         skf = StratifiedKFold(n_splits=n_splits)
 
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
-            if i == 2: # fold2만
+            if i in [8, 9]:
                 print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
                 wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
                 wandb.run.name = f'{config.wandb}_fold{i}'
@@ -260,7 +264,7 @@ def main(data_dir, model_dir, config):
                 if config.scheduler == "StepLR":
                     lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
                 elif config.scheduler == "ReduceLROnPlateau":
-                    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=config.patience, min_lr=1e-6, verbose=True)
+                    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=config.patience, min_lr=1e-6, verbose=True)
 
                 trainer = Trainer(model, criterion, optimizer,
                                 config=config,
@@ -416,6 +420,11 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--model_dir", type=str, default=os.environ.get("SM_MODEL_DIR", "/data/ephemeral/home/model")
+    )
+
+    # Train target    
+    parser.add_argument(
+        "--target", type=str, default=""
     )
 
     args = parser.parse_args()
