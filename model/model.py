@@ -1,11 +1,9 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from base.base_model import BaseModel
 import timm
-import torchvision
-from model.arcface_resnet import *
-from model.arcface_metrics import *
+from torch import load
+from collections import OrderedDict
 
 
 class MnistModel(BaseModel):
@@ -82,30 +80,30 @@ class EfficientNetB4MultiHead(BaseModel):
         self.mask = nn.Sequential(
             nn.Linear(1792, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(128, 3)
         )
 
         self.age = nn.Sequential(
             nn.Linear(1792, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(128, 3)
         )
         
         self.gender = nn.Sequential(
             nn.Linear(1792, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(128, 2)
         )
 
@@ -115,42 +113,42 @@ class EfficientNetB4MultiHead(BaseModel):
         gender = self.gender(x)
         age = self.age(x)
         return mask, gender, age
-    
 
-class ViTL14MultiHead(BaseModel):
+
+class DaViTMultiHead(BaseModel):
     def __init__(self, num_classes):
         super().__init__()
-        self.model = timm.create_model('timm/vit_large_patch14_clip_224.openai_ft_in12k_in1k', pretrained=True) # num_features : 1000
+        self.model = timm.create_model('davit_base.msft_in1k', pretrained=True, num_classes=0)  # num_features : 1792
         for param in self.model.parameters():
             param.requires_grad = False
 
         self.mask = nn.Sequential(
-            nn.Linear(1000, 512),
+            nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(128, 3)
         )
 
         self.age = nn.Sequential(
-            nn.Linear(1000, 512),
+            nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(128, 3)
         )
         
         self.gender = nn.Sequential(
-            nn.Linear(1000, 512),
+            nn.Linear(1024, 512),
             nn.BatchNorm1d(512),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(512, 128),
             nn.BatchNorm1d(128),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(128, 2)
         )
 
@@ -162,33 +160,82 @@ class ViTL14MultiHead(BaseModel):
         return mask, gender, age
 
 
-class ArcfaceMultiHead(BaseModel):
+class Beit2MultiHead(BaseModel):
     def __init__(self, num_classes):
         super().__init__()
-        # # pretrained resnetface18 from repo
-        # self.model = ResNetFace(IRBlock, [2, 2, 2, 2], use_se=False)
-        # checkpoint = torch.load('./model/pretrained/arcface_resnet18_110.pth', map_location='cuda:0')
-        # self.model = torch.nn.DataParallel(self.model, device_ids=[0])
-        # self.model.load_state_dict(checkpoint)
-        # #
-        # self.model = timm.create_model('timm/convnext_small.in12k', pretrained=True) # num_features : 11821
-        self.model = timm.create_model('timm/vit_large_patch14_clip_224.openai_ft_in12k_in1k', pretrained=True) # num_features : 1000
+        self.model = timm.create_model('beitv2_large_patch16_224.in1k_ft_in22k', pretrained=True, num_classes=0)  # num_features : 1792
         for param in self.model.parameters():
             param.requires_grad = False
-        #
-        self.mask = ArcMarginProduct(1000, 3, s=30, m=0.5, easy_margin=True)
 
-        self.age = ArcMarginProduct(1000, 3, s=30, m=0.5, easy_margin=True)
+        self.mask = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 3)
+        )
+
+        self.age = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            # nn.Dropout(0.5),
+            nn.LeakyReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 3)
+        )
         
-        self.gender = ArcMarginProduct(1000, 2, s=30, m=0.5, easy_margin=True)
+        self.gender = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.LeakyReLU(),
+            nn.Linear(128, 2)
+        )
 
-    def forward(self, x, mask, gender, age):
-        # x = self.model.forward_features(x)
-        # x = self.model.forward_head(x)
+        # self.age_with_mask = nn.Sequential(
+        #     nn.Linear(1024, 512),
+        #     nn.BatchNorm1d(512),
+        #     nn.Dropout(0.5),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(512, 128),
+        #     nn.BatchNorm1d(128),
+        #     nn.LeakyReLU(),
+        #     nn.Linear(128, 3)
+        # )
+
+        # pretrain_model = load('/data/ephemeral/home/model/beit2_full/best.pth')
+        # pretrain_head = load('/data/ephemeral/home/model/beit2_v2_freeze/best.pth')
+        # model_state = OrderedDict([(k[6:], v) for k, v in pretrain_model.items() if 'model' in k])
+        # mask_state = OrderedDict([(k[5:], v) for k, v in pretrain_head.items() if 'mask' in k])
+        # age_state = OrderedDict([(k[4:], v) for k, v in pretrain_head.items() if 'age' in k])
+        # gender_state = OrderedDict([(k[7:], v) for k, v in pretrain_head.items() if 'gender' in k])
+        
+        # self.model.load_state_dict(model_state)
+        # self.mask.load_state_dict(mask_state)
+        # self.age.load_state_dict(age_state)
+        # self.gender.load_state_dict(gender_state)
+
+        # for param in self.mask.parameters():
+        #     param.requires_grad = False
+        # for param in self.age.parameters():
+        #     param.requires_grad = False
+        # for param in self.gender.parameters():
+        #     param.requires_grad = False
+
+
+    def forward(self, x):
         x = self.model(x)
-        mask = self.mask(x, mask)
-        gender = self.gender(x, gender)
-        age = self.age(x, age)
+        mask = self.mask(x)
+        gender = self.gender(x)
+        age = self.age(x)
+        # age_with_mask = self.age_with_mask(x)
+        # return mask, gender, age, age_with_mask
         return mask, gender, age
 
 
