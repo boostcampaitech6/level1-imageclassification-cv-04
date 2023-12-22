@@ -282,11 +282,10 @@ class Trainer(BaseTrainer):
 
             val_loss = np.sum(val_loss_items) / len(self.valid_dataloader)
             val_acc = np.sum(val_acc_items) / (len(self.valid_dataloader) * self.config.valid_batch_size)
+            
             if self.config.best_model == "acc":
                 if val_acc > self.best_val_acc:
-                    print(
-                        f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
-                    )
+                    print(f"New best model for val accuracy : {val_acc:4.2%}! saving the best model..")
                     torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
                     self.best_val_acc = val_acc
                     self.patience = 0  # 초기화
@@ -298,9 +297,7 @@ class Trainer(BaseTrainer):
                 self.best_val_loss = min(self.best_val_loss, val_loss)
             elif self.config.best_model == "loss":
                 if val_loss < self.best_val_loss:
-                    print(
-                        f"New best model for val loss : {val_loss:4.2}! saving the best model.."
-                    )
+                    print(f"New best model for val loss : {val_loss:4.2}! saving the best model..")
                     torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
                     self.best_val_loss = val_loss
                     self.patience = 0  # 초기화
