@@ -32,6 +32,9 @@ class Trainer(BaseTrainer):
         self.lr_scheduler = lr_scheduler
         self.best_val_acc = 0
         self.best_val_loss = np.inf
+        self.lambda_age = 1
+        self.lambda_gender = 1
+        self.lambda_mask = 1
 
         # self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
         self.save_dir = self.increment_path(os.path.join(self.config.model_dir, wandb.run.name))
@@ -125,7 +128,7 @@ class Trainer(BaseTrainer):
                         loss_mask = self.criterion(pred_mask, mask)
                         loss_gender = self.criterion(pred_gender, gender)
                         loss_age = self.criterion(pred_age, age)
-                loss = loss_mask + loss_gender + loss_age
+                loss = loss_mask * self.lambda_mask + loss_gender * self.lambda_gender + loss_age * self.lambda_age
                 preds = torch.argmax(pred_mask, dim=-1) * 6 + torch.argmax(pred_gender, dim=-1) * 3 + torch.argmax(pred_age, dim=-1)
 
                 acc_mask = (torch.argmax(pred_mask, dim=-1) == mask).sum().item() / mask.numel()
@@ -355,15 +358,26 @@ class Trainer(BaseTrainer):
 
             val_loss = np.sum(val_loss_items) / len(self.valid_dataloader)
             val_acc = np.sum(val_acc_items) / (len(self.valid_dataloader) * self.config.valid_batch_size)
-            self.best_val_loss = min(self.best_val_loss, val_loss)
-            if val_acc > self.best_val_acc:
-                print(
-                    f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
-                )
+            
+            # self.best_val_loss = min(self.best_val_loss, val_loss)
+            # if val_acc > self.best_val_acc:
+            #     print(
+            #         f"New best model for val accuracy : {val_acc:4.2%}! saving the best model.."
+            #     )
+
+            #     self.best_val_acc = val_acc
+            #     torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
                 
+            self.best_val_acc = max(self.best_val_acc, val_acc)
+            if val_loss < self.best_val_loss:
+                print(
+                    f"New best model for val loss : {val_loss:2.5}! saving the best model.."
+                )
+                self.best_val_loss = val_loss
                 torch.save(self.model.module.state_dict(), f"{self.save_dir}/best.pth")
-            if val_acc > self.best_val_acc:
-                self.best_val_acc = val_acc
+
+            
+            
             torch.save(self.model.module.state_dict(), f"{self.save_dir}/last.pth")
             if self.config.multi_head:
                 print(

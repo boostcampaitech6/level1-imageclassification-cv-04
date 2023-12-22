@@ -14,9 +14,69 @@ import model.loss as module_loss
 import model.model as module_arch
 from trainer import Trainer
 from utils import prepare_device
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, _LRScheduler
 import wandb
+import math
 from sklearn.model_selection import StratifiedKFold
+
+
+class CosineAnnealingWarmUpRestarts(_LRScheduler):
+    def __init__(self, optimizer, T_0, T_mult=1, eta_max=0.1, T_up=0, gamma=1., last_epoch=-1):
+        if T_0 <= 0 or not isinstance(T_0, int):
+            raise ValueError("Expected positive integer T_0, but got {}".format(T_0))
+        if T_mult < 1 or not isinstance(T_mult, int):
+            raise ValueError("Expected integer T_mult >= 1, but got {}".format(T_mult))
+        if T_up < 0 or not isinstance(T_up, int):
+            raise ValueError("Expected positive integer T_up, but got {}".format(T_up))
+        self.T_0 = T_0
+        self.T_mult = T_mult
+        self.base_eta_max = eta_max
+        self.eta_max = eta_max
+        self.T_up = T_up
+        self.T_i = T_0
+        self.gamma = gamma
+        self.cycle = 0
+        self.T_cur = last_epoch
+        super(CosineAnnealingWarmUpRestarts, self).__init__(optimizer, last_epoch)
+
+    def get_lr(self):
+        if self.T_cur == -1:
+            return self.base_lrs
+        elif self.T_cur < self.T_up:
+            return [(self.eta_max - base_lr) * self.T_cur / self.T_up + base_lr for base_lr in self.base_lrs]
+        else:
+            return [base_lr + (self.eta_max - base_lr) * (
+                        1 + math.cos(math.pi * (self.T_cur - self.T_up) / (self.T_i - self.T_up))) / 2
+                    for base_lr in self.base_lrs]
+
+    def step(self, epoch=None):
+        if epoch is None:
+            epoch = self.last_epoch + 1
+            self.T_cur = self.T_cur + 1
+            if self.T_cur >= self.T_i:
+                self.cycle += 1
+                self.T_cur = self.T_cur - self.T_i
+                self.T_i = (self.T_i - self.T_up) * self.T_mult + self.T_up
+        else:
+            if epoch >= self.T_0:
+                if self.T_mult == 1:
+                    self.T_cur = epoch % self.T_0
+                    self.cycle = epoch // self.T_0
+                else:
+                    n = int(math.log((epoch / self.T_0 * (self.T_mult - 1) + 1), self.T_mult))
+                    self.cycle = n
+                    self.T_cur = epoch - self.T_0 * (self.T_mult ** n - 1) / (self.T_mult - 1)
+                    self.T_i = self.T_0 * self.T_mult ** (n)
+            else:
+                self.T_i = self.T_0
+                self.T_cur = epoch
+
+        self.eta_max = self.base_eta_max * (self.gamma ** self.cycle)
+        self.last_epoch = math.floor(epoch)
+        for param_group, lr in zip(self.optimizer.param_groups, self.get_lr()):
+            param_group['lr'] = lr
+
+
 
 def seed_everything(seed):
     torch.manual_seed(seed)
@@ -29,6 +89,9 @@ def seed_everything(seed):
 
 
 def getDataloader(dataset, train_idx, valid_idx, batch_size, num_workers, config):
+    dataset.indices['train'] = train_idx
+    dataset.indices['val'] = valid_idx
+
     # 인자로 전달받은 dataset에서 train_idx에 해당하는 Subset 추출
     train_set = torch.utils.data.Subset(dataset,
                                         indices=train_idx)
@@ -112,15 +175,17 @@ def main(data_dir, model_dir, config):
         use_caution=config.use_caution_data
     )
     num_classes = dataset.num_classes
-    dataset_mean = dataset.mean
-    dataset_std = dataset.std
+    # dataset_mean = dataset.mean
+    # dataset_std = dataset.std
+    dataset_mean = (0.5620, 0.5275, 0.5050)
+    dataset_std = (0.6182, 0.5902, 0.5715)
 
     # setup augmentation instance
     augmentation_module = getattr(module_augmentation, config.augmentation)  # default: MaskSplitByProfileDataset
     transform = augmentation_module(
         resize=config.resize,
-        mean=dataset.mean,
-        std=dataset.std,
+        mean=dataset_mean,
+        std=dataset_std,
     )
     dataset.set_transform(transform)
 
@@ -203,6 +268,8 @@ def main(data_dir, model_dir, config):
             lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
         elif config.scheduler == "ReduceLROnPlateau":
             lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=config.patience, min_lr=1e-6, verbose=True) # val_acc max
+        elif config.scheduler == "CosineAnnealingWarmUpRestarts":
+            lr_scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=1, eta_max=0.001, T_up=3, gamma=0.5)
 
         trainer = Trainer(model, criterion, optimizer,
                         config=config,
@@ -221,6 +288,9 @@ def main(data_dir, model_dir, config):
         skf = StratifiedKFold(n_splits=n_splits)
 
         for i, (train_idx, valid_idx) in enumerate(skf.split(dataset.image_paths, labels)):
+            if i != 2:
+                continue
+
             print(f"Fold:{i}, Train set: {len(train_idx)}, Valid set:{len(valid_idx)}")
             wandb.init(project="level1-imageclassification-cv-04", config=config, reinit=True)
             wandb.run.name = f'{config.wandb}_fold{i}'
@@ -260,6 +330,9 @@ def main(data_dir, model_dir, config):
                 lr_scheduler = StepLR(optimizer, config.lr_decay_step, gamma=config.lr_decay_rate)
             elif config.scheduler == "ReduceLROnPlateau":
                 lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=config.patience, min_lr=1e-6, verbose=True) # val_acc max
+            elif config.scheduler == "CosineAnnealingWarmUpRestarts":
+                lr_scheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0=15, T_mult=1, eta_max=0.001, T_up=3, gamma=0.5)
+
 
             trainer = Trainer(model, criterion, optimizer,
                             config=config,
@@ -281,7 +354,7 @@ if __name__ == '__main__':
         "--seed", type=int, default=42, help="random seed (default: 42)"
     )
     parser.add_argument(
-        "--kfold", type=int, default=0, help="use stratified KFold validation or not (default: 0 (not))"
+        "--kfold", type=int, default=1, help="use stratified KFold validation or not (default: 0 (not))"
     )
     parser.add_argument(
         "--epochs", type=int, default=30, help="number of epochs to train (default: 64)"
@@ -295,7 +368,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--augmentation",
         type=str,
-        default="BaseAugmentation",
+        default="CustomAugmentation",
         help="data augmentation type (default: BaseAugmentation)",
     )
     parser.add_argument(
@@ -321,23 +394,23 @@ if __name__ == '__main__':
     parser.add_argument(
         "--batch_size",
         type=int,
-        default=64,
+        default=512,
         help="input batch size for training (default: 64)",
     )
     parser.add_argument(
         "--valid_batch_size",
         type=int,
-        default=1000,
+        default=100,
         help="input batch size for validing (default: 1000)",
     )
     parser.add_argument(
-        "--model", type=str, default="EfficientNetB0MultiHead", help="model type (default: EfficientNetB0MultiHead)"
+        "--model", type=str, default="Beit2MultiHead", help="model type (default: EfficientNetB0MultiHead)"
     )
     parser.add_argument(
         "--optimizer", type=str, default="Adam", help="optimizer type (default: Adam)"
     )
     parser.add_argument(
-        "--lr", type=float, default=1e-3, help="learning rate (default: 1e-3)"
+        "--lr", type=float, default=1e-10, help="learning rate (default: 1e-3)"
     )
     parser.add_argument(
         "--val_ratio",
@@ -354,7 +427,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--scheduler",
         type=str,
-        default="StepLR",
+        default="CosineAnnealingWarmUpRestarts",
         help="lr scheduler type (default: StepLR)",
     )
     parser.add_argument(
@@ -385,13 +458,13 @@ if __name__ == '__main__':
         "--name", default="exp", help="model save at {SM_MODEL_DIR}/{name}"
     )
     parser.add_argument(
-        "--wandb", default="model_EfficientNetB0", 
+        "--wandb", default="model_Beit2MultiHead_v3_norm", 
         help="wandb run name. 실험 대상이 되는 \"arg종류_arg값\" 형태로 적어주세요 (예: model_EfficientNetB4)."
     )
     parser.add_argument(
         "--save_val_table", 
         type=int,
-        default=0,
+        default=2,
         help="wandb에서 validation 추론 결과를 val_table로 저장할지.0인 경우 x, 1인 경우 validation set 전체 prediction case 저장, 2인 경우 틀린 prediction case만 저장"
     )
     parser.add_argument(
