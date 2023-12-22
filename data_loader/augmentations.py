@@ -84,8 +84,8 @@ class AddGaussianNoise(object):
 #         return self.transform(image)
         
 
-SwinTransformerBase224V1_BaseAugmentation
-SwinTransformerBase224V1_CustomAugmentation
+# SwinTransformerBase224V1_BaseAugmentation
+# SwinTransformerBase224V1_CustomAugmentation
 class CustomAugmentation:
     """커스텀 Augmentation을 담당하는 클래스"""
 

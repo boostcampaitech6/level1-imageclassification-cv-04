@@ -61,10 +61,9 @@ def main(config):
     transform = transforms.Compose([
         CenterCrop((320, 256)),
         Resize(config.resize, Image.BILINEAR),
-        ColorJitter(0.1, 0.1, 0.1, 0.01),
         ToTensor(),
-        Normalize(mean=(0.5620, 0.5275, 0.5050), std=(0.6182, 0.5902, 0.5715))
-    ])
+        Normalize(mean=(0.20629331, 0.17723827, 0.16767759), std=(0.34968819, 0.30846628, 0.29714536))
+    ]),
     dataset = TestDataset(image_paths, transform)
 
     loader = DataLoader(
@@ -102,18 +101,19 @@ def main(config):
                         all_predictions.append(prediction.cpu().numpy())
                 # ====================================
                 
-                pred_masks.extend(torch.argmax(pred_mask, dim=-1).cpu().numpy())
-                pred_genders.extend(torch.argmax(pred_gender, dim=-1).cpu().numpy())
-                pred_ages.extend(torch.argmax(pred_age, dim=-1).cpu().numpy())
+
             else:
                 pred = model(images)
                 pred = pred.argmax(dim=-1)
                 all_predictions.extend(pred.cpu().numpy())
     
-    all_predictions = np.array(all_predictions)
-    for i in range(18):
-        submission[f'ans{i}'] = all_predictions[:, i] + [0 for _ in range(13450)]
-        print(submission[f"ans{i}"])
+    if config.ensemble == "hard":
+        submission['ans'] = all_predictions
+            
+    elif config.ensemble == "soft":
+        all_predictions = np.array(all_predictions)
+        for i in range(18):
+            submission[f'ans{i}'] = all_predictions[:, i]
     
     # submission["mask"] = pred_masks
     # submission["gender"] = pred_genders

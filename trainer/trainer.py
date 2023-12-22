@@ -35,7 +35,6 @@ class Trainer(BaseTrainer):
         self.patience = 0
         
         # logging with config.json
-        # self.save_dir = self.increment_path(os.path.join(self.config.model_dir, self.config.name))
         self.save_dir = self.increment_path(os.path.join(self.config.model_dir, wandb.run.name))
         
         self.logger = SummaryWriter(log_dir=self.save_dir)

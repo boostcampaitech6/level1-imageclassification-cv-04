@@ -40,7 +40,7 @@ def main(config):
         data_dir=config.data_dir,
         multi_head=config.multi_head,
         use_caution=config.use_caution_data,
-        valid_ratio=config.valid_ratio
+        val_ratio=config.val_ratio
     )
     num_classes = dataset.num_classes
     dataset_mean = dataset.mean

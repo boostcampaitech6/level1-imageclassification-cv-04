@@ -3,7 +3,7 @@
 RESIZE="224 224"
 MODEL_ARCH=1
 MODEL=SwinTransformerBase224V1
-RESULT_NAME="final_SwinTransformerV1_f1_fold0"
+RESULT_NAME="finale_SwinTransformerV1"
 TEST_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/data/eval"
 MODEL_DIR="/data/ephemeral/home/level1-imageclassification-cv-04/results/${RESULT_NAME}/best.pth"
 ENSEMBLE="soft"

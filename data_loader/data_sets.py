@@ -29,9 +29,9 @@ class MaskSplitByProfileDataset(MaskBaseDataset):
         data_dir,
         multi_head,
         use_caution,
-        mean=(0.5620, 0.5275, 0.5050),
-        std=(0.6182, 0.5902, 0.5715),
-        val_ratio=0.2,
+        mean=(0.20629331, 0.17723827, 0.16767759),
+        std=(0.34968819, 0.30846628, 0.29714536),
+        val_ratio=0.1,
     ):
         self.indices = defaultdict(list)
         super().__init__(data_dir, multi_head, use_caution, mean, std, val_ratio)

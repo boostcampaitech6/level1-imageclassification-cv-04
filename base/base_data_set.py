@@ -84,6 +84,7 @@ class MaskBaseDataset(Dataset):
     mask_labels = []
     gender_labels = []
     age_labels = []
+    # ??: (0.20629331, 0.17723827, 0.16767759), (0.34968819, 0.30846628, 0.29714536)
     # random 3000 samples: (0.5620, 0.5275, 0.5050), (0.6182, 0.5902, 0.5715)
     # basic: (0.548, 0.504, 0.479), (0.237, 0.247, 0.246)
     def __init__(
@@ -91,9 +92,9 @@ class MaskBaseDataset(Dataset):
         data_dir,
         multi_head,
         use_caution,
-        mean=(0.5620, 0.5275, 0.5050),
-        std=(0.6182, 0.5902, 0.5715),
-        val_ratio=0.2,
+        mean=(0.20629331, 0.17723827, 0.16767759),
+        std=(0.34968819, 0.30846628, 0.29714536),
+        val_ratio=0.1,
     ):
         self.data_dir = data_dir
         self.multi_head = multi_head
