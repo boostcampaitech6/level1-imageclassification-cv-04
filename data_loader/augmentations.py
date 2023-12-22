@@ -114,7 +114,8 @@ class CustomAugmentation:
                 ColorJitter(0.1, 0.1, 0.1, 0.1),
                 ToTensor(),
                 Normalize(mean=mean, std=std),
-                AddGaussianNoise(),
+                RandomHorizontalFlip(0.5),
+                # AddGaussianNoise(),
             ]
         )
 
