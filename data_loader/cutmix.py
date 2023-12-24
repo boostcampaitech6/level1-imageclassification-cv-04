@@ -103,7 +103,29 @@ def cutmix_half_hor(batch, alpha):
         return data, targets, masks, genders, ages
     elif len(batch) == 2:
         data, targets = batch
-        print("Not Implemented")
+
+        indices = torch.randperm(data.size(0))
+        shuffled_data = data[indices]           # mix 후보 shuffled_data
+        shuffled_targets = targets[indices]     # mix 후보 shuffled_label
+
+        lam = 0.75 # alpha 활요한 beta 분포에서 안뽑고 고정값
+        # 패치의 h, w는, 주어진 이미지의 h, w에 np.sqrt(1-lam)을 곱하여 얻게 됩니다.
+        # 둘다 반반이면 0.5 = np.sqrt(1-lam) => lam = 0.75
+
+        image_h, image_w = data.shape[2:]
+        x0 = int(np.round(image_w / 2))
+        x1 = int(np.round(image_w))
+        y0 = int(np.round(image_h / 4))
+        y1 = int(np.round(image_h / 4 * 3))
+
+        # mix data < shuffled data
+        data[:, :, y0:y1, x0:x1] = shuffled_data[:, :, y0:y1, x0:x1]
+
+        # adjust lambda to exactly match pixel ratio
+        lam = 1 - ((x1 - x0) * (y1 - y0) / (image_h * image_w))
+
+        targets = (targets, shuffled_targets, lam)
+
         return data, targets
     
 def cutmix_half_ori(batch, alpha):
@@ -138,7 +160,27 @@ def cutmix_half_ori(batch, alpha):
         return data, targets, masks, genders, ages
     elif len(batch) == 2:
         data, targets = batch
-        print("Not Implemented")
+
+        indices = torch.randperm(data.size(0))
+        shuffled_data = data[indices]           # mix 후보 shuffled_data
+        shuffled_targets = targets[indices]     # mix 후보 shuffled_label
+
+        lam = 0.5 # alpha 활요한 beta 분포에서 안뽑고 고정값
+
+        image_h, image_w = data.shape[2:]
+        x0 = int(np.round(image_w / 2))
+        x1 = int(np.round(image_w))
+        y0 = int(np.round(image_h / 4))
+        y1 = int(np.round(image_h / 4 * 3))
+
+        # mix data < shuffled data
+        data[:, :, y0:y1, x0:x1] = shuffled_data[:, :, y0:y1, x0:x1]
+
+        # adjust lambda to exactly match pixel ratio
+        lam = 1 - ((x1 - x0) * (y1 - y0) / (image_h * image_w))
+
+        targets = (targets, shuffled_targets, lam)
+
         return data, targets
 
 
@@ -152,8 +194,8 @@ class CutMixCollator:
         if self.mode == 0:
             batch = cutmix(batch, self.alpha)
         elif self.mode == 1:
-            batch = cutmix_half_hor(batch, self.alpha) # lambda = 0.75
-            # batch = cutmix_half_ori(batch, self.alpha) # lambda = 0.5 구현 이상함
+            # batch = cutmix_half_hor(batch, self.alpha) # lambda = 0.75
+            batch = cutmix_half_ori(batch, self.alpha) # lambda = 0.5 구현 이상함
         # elif self.mode == 2: # TODO
         return batch
 

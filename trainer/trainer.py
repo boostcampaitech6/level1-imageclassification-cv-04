@@ -175,17 +175,33 @@ class Trainer(BaseTrainer):
                     acc_age_items.append(acc_age)
 
             else:
-                if self.config.augmentation == "CutmixAugmentation":
-                    print("Not Implemented.")
                 inputs, labels = train_batch
                 inputs = inputs.to(self.device)
-                labels = labels.to(self.device)
+                if self.config.augmentation == "CutmixAugmentation":
+                    targets = labels.copy()
+                    tgts, tgts2, lam = targets
+                    tgts = tgts.to(self.device)
+                    tgts2 = tgts2.to(self.device)
 
-                with torch.cuda.amp.autocast():
-                    outs = self.model(inputs)
-                    loss = self.criterion(outs, labels)
+                    labels = tgts
 
-                    preds = torch.argmax(outs, dim=-1)
+                    with torch.cuda.amp.autocast():
+                        if self.config.model == "ArcfaceMultiHead":
+                            outs = self.model(inputs, mask, gender, age)
+                        else:
+                            outs = self.model(inputs)
+                        
+                        loss = self.cutmix_criterion(outs, (tgts, tgts2, lam))
+
+                        preds = torch.argmax(outs, dim=-1)
+                else:
+                    labels = labels.to(self.device)
+
+                    with torch.cuda.amp.autocast():
+                        outs = self.model(inputs)
+                        loss = self.criterion(outs, labels)
+
+                        preds = torch.argmax(outs, dim=-1)
 
             # loss.backward()
             # self.optimizer.step()
@@ -194,8 +210,8 @@ class Trainer(BaseTrainer):
             self.scaler.update()
             
             loss_value += loss.item()
-            if self.config.target:
-                matches += (preds == target).sum().item()   # NOTE: CUTMIX를 지대로 쓰기 위해선 이 부분을 수정해야 합니다.
+            if self.config.target:                      # CLIP
+                matches += (preds == target).sum().item()
             # if self.config.augmentation == "CutmixAugmentation":# cutmix_0*
             #     labels = mask * 6 + gender * 3 + age            # mix된 labels 반영
             else:
