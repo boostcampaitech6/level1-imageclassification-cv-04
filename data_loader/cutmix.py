@@ -170,8 +170,8 @@ def cutmix_half_ori(batch, alpha):
         image_h, image_w = data.shape[2:]
         x0 = int(np.round(image_w / 2))
         x1 = int(np.round(image_w))
-        y0 = int(np.round(image_h / 4))
-        y1 = int(np.round(image_h / 4 * 3))
+        y0 = int(np.round(0))
+        y1 = int(np.round(image_h))
 
         # mix data < shuffled data
         data[:, :, y0:y1, x0:x1] = shuffled_data[:, :, y0:y1, x0:x1]
