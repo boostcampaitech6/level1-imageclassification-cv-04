@@ -96,6 +96,30 @@ class EfficientNetB0MultiHead(BaseModel):
         gender = self.gender(x)
         age = self.age(x)
         return mask, gender, age
+
+
+class EfficientNetB4SingleHead(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model('efficientnet_b4', pretrained=True, num_classes=0)  # num_features : 1792
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        self.cls = nn.Sequential(
+            nn.Linear(1792, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 18)
+        )
+
+
+    def forward(self, x):
+        x = self.model(x)
+        pred = self.cls(x)
+        return pred
     
 
 class EfficientNetB4MultiHead(BaseModel):
@@ -141,7 +165,31 @@ class EfficientNetB4MultiHead(BaseModel):
         gender = self.gender(x)
         age = self.age(x)
         return mask, gender, age
-    
+
+
+class ViTL14SingleHead(BaseModel):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.model = timm.create_model('timm/vit_large_patch14_clip_224.openai_ft_in12k_in1k', pretrained=True) # num_features : 1000
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        self.cls = nn.Sequential(
+            nn.Linear(1000, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Linear(128, 18)
+        )
+
+
+    def forward(self, x):
+        x = self.model(x)
+        pred = self.cls(x)
+        return pred
+
 
 class ViTL14MultiHead(BaseModel):
     def __init__(self, num_classes):
