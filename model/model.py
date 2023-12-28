@@ -6,7 +6,7 @@ import timm
 import torchvision
 from model.arcface_resnet import *
 from model.arcface_metrics import *
-import clip # https://github.com/openai/CLIP
+# import clip # https://github.com/openai/CLIP
 import copy 
 
 
