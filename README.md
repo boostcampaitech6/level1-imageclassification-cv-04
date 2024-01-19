@@ -8,6 +8,20 @@
 - 조민지
 - 조성혁
 
+## Project Schedule
+- <img width="1262" alt="project_schedule" src="https://github.com/boostcampaitech6/level1-imageclassification-cv-04/assets/63362096/ed783cfd-e6b1-4c54-8562-b9465e62732a">
+
+## Results
+- Public
+  <img width="1083" alt="public_leaderboard" src="https://github.com/boostcampaitech6/level1-imageclassification-cv-04/assets/63362096/84d179dd-acf2-4509-8b2e-ba9d4a8358e8">
+
+- Private
+  <img width="1083" alt="private_leaderboard" src="https://github.com/boostcampaitech6/level1-imageclassification-cv-04/assets/63362096/0f00889a-657f-46e5-984c-4cc7409c1e58">
+
+## Wrap-up Reports
+- [Notion](https://uowon.notion.site/Wrap-up-Reports-2ea13f81ddce4868ba6a0a19f2e98db8?pvs=4)
+- [pdf download](https://github.com/boostcampaitech6/level1-imageclassification-cv-04/files/13987801/level1_cv_04_imageclassification_project_wrap_up_reposts.pdf)
+
 ## Ground Rules
 ### [Conventional Commits 1.0.0](https://www.conventionalcommits.org/ko/v1.0.0/)
 ```bash
